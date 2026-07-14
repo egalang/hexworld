@@ -1,3 +1,5 @@
+import Phaser from 'phaser';
+
 export const WIDTH = 450;
 export const HEIGHT = 800;
 export const BOARD_RADIUS = 4;
@@ -32,7 +34,7 @@ export type OnlineRoomState = {
   updated_at: number;
 };
 
-type OnlineReconnectSession = {
+export type OnlineReconnectSession = {
   serverUrl: string;
   roomCode: string;
   playerId: string;
@@ -69,7 +71,7 @@ const MUSIC_FILES: Record<string, string[]> = {
   [MUSIC_KEYS.bgm]: ['/assets/music.mp3'],
 };
 
-function preloadSoundEffects(scene: Phaser.Scene) {
+export function preloadSoundEffects(scene: Phaser.Scene) {
     for (const [key, paths] of Object.entries(SOUND_FILES)) {
         if (!scene.cache.audio.exists(key)) {
             scene.load.audio(key, paths);
@@ -114,7 +116,7 @@ export function playSound(scene: Phaser.Scene, key: string, volume = 0.55) {
   }
 }
 
-const DEFAULT_PVP_SERVER_URL = 'http://hex-conquest-pvp-alb-1620546806.ap-southeast-2.elb.amazonaws.com';
+export const DEFAULT_PVP_SERVER_URL = 'http://hex-conquest-pvp-alb-1620546806.ap-southeast-2.elb.amazonaws.com';
 
 const ONLINE_RECONNECT_KEY = 'hex_online_reconnect_session';
 const ONLINE_RECONNECT_MAX_AGE_MS = 1000 * 60 * 60 * 6;
@@ -173,7 +175,7 @@ export function clearReconnectSession() {
 export const CAMPAIGN_MAX_LEVEL = 20;
 const CAMPAIGN_PROGRESS_KEY = 'hex_campaign_unlocked_level';
 
-function getUnlockedCampaignLevel(): number {
+export function getUnlockedCampaignLevel(): number {
   const raw = Number(localStorage.getItem(CAMPAIGN_PROGRESS_KEY) || '1');
   if (!Number.isFinite(raw)) return 1;
   return Phaser.Math.Clamp(Math.floor(raw), 1, CAMPAIGN_MAX_LEVEL);
@@ -187,7 +189,7 @@ export function saveUnlockedCampaignLevel(level: number) {
   }
 }
 
-function getCampaignLevelTitle(level: number): string {
+export function getCampaignLevelTitle(level: number): string {
   if (level <= 2) return 'Training Grounds';
   if (level <= 4) return 'Red Expansion';
   if (level <= 7) return 'Broken Frontline';
@@ -250,7 +252,7 @@ function getCampaignStarsMap(): Record<string, number> {
   }
 }
 
-function getSavedCampaignStars(level: number): number {
+export function getSavedCampaignStars(level: number): number {
   const stars = getCampaignStarsMap()[String(level)] ?? 0;
   return Phaser.Math.Clamp(Number(stars) || 0, 0, 3);
 }
@@ -281,8 +283,8 @@ type AiStats = {
 const AI_SETTINGS_KEY = 'hex_ai_settings';
 const AI_STATS_KEY = 'hex_ai_stats';
 
-const AI_DIFFICULTIES: AiDifficulty[] = ['easy', 'normal', 'hard', 'expert'];
-const AI_PERSONALITIES: AiPersonality[] = ['balanced', 'aggressive', 'defensive', 'center', 'chaotic'];
+export const AI_DIFFICULTIES: AiDifficulty[] = ['easy', 'normal', 'hard', 'expert'];
+export const AI_PERSONALITIES: AiPersonality[] = ['balanced', 'aggressive', 'defensive', 'center', 'chaotic'];
 
 export function formatAiDifficulty(value: AiDifficulty) {
   if (value === 'easy') return 'Easy';
@@ -357,14 +359,14 @@ export function saveAiMatchResult(playerWon: boolean, turns: number, difficulty:
   localStorage.setItem(AI_STATS_KEY, JSON.stringify(stats));
 }
 
-function getAiDifficultyDescription(value: AiDifficulty) {
+export function getAiDifficultyDescription(value: AiDifficulty) {
   if (value === 'easy') return 'Learns slowly and sometimes chooses weak moves.';
   if (value === 'normal') return 'Uses the current balanced strategy.';
   if (value === 'hard') return 'Stronger scoring with fewer random mistakes.';
   return 'Scores position and checks likely counterplay.';
 }
 
-function getAiPersonalityDescription(value: AiPersonality) {
+export function getAiPersonalityDescription(value: AiPersonality) {
   if (value === 'aggressive') return 'Prioritizes big conversions.';
   if (value === 'defensive') return 'Protects territory and avoids risky trades.';
   if (value === 'center') return 'Fights hard for the middle of the board.';

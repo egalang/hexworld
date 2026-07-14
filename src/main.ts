@@ -2,7 +2,50 @@ import Phaser from 'phaser';
 import blueSoldierUrl from '/assets/blue_01.png';
 import redSoldierUrl from '/assets/red_01.png';
 import { HexConquestScene } from './scenes/HexConquestScene';
+import {
+  WIDTH,
+  HEIGHT,
+  BOARD_RADIUS,
+  HEX_SIZE,
+  SQRT3,
+  BLUE_SOLDIER_KEY,
+  RED_SOLDIER_KEY,
+  SOUND_KEYS,
+  COLORS,
+  DEFAULT_PVP_SERVER_URL,
+  preloadSoundEffects,
+  unlockAudio,
+  playSound,
+  saveReconnectSession,
+  clearReconnectSession,
+  CAMPAIGN_MAX_LEVEL,
+  saveUnlockedCampaignLevel,
+  getUnlockedCampaignLevel,
+  getSavedCampaignStars,
+  saveCampaignStars,
+  getCampaignObjective,
+  formatStars,
+  getSavedAiSettings,
+  saveAiSettings,
+  getAiStats,
+  saveAiMatchResult,
+  AI_DIFFICULTIES,
+  AI_PERSONALITIES,
+  formatAiDifficulty,
+  formatAiPersonality,
+  getAiDifficultyDescription,
+  getAiPersonalityDescription,
+  type Player,
+  type Owner,
+  type GameMode,
+  type Hex,
+  type OnlineRoomState,
+  type CampaignObjective,
+  type AiDifficulty,
+  type AiPersonality,
+} from './shared';
 
+/*
 export type Player = 'blue' | 'red';
 export type Owner = Player | null;
 export type GameMode = 'campaign' | 'ai' | 'local' | 'online';
@@ -384,20 +427,7 @@ export function formatStars(stars: number) {
   return '★'.repeat(stars) + '☆'.repeat(3 - stars);
 }
 
-export const COLORS = {
-  bgTop: 0x1db9e8,
-  bgBottom: 0x163d5d,
-  empty: 0xf1f5e9,
-  emptyStroke: 0x1a1a1a,
-  blue: 0x1889ff,
-  blueDark: 0x003d8f,
-  red: 0xff2a2a,
-  redDark: 0x8f0000,
-  selected: 0xffdf40,
-  valid: 0x7cff83,
-  panel: 0xffffff,
-  text: '#ffffff',
-};
+*/
 
 export class BootScene extends Phaser.Scene {
   constructor() {

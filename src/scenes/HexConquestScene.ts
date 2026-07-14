@@ -1,10 +1,10 @@
 import Phaser from 'phaser';
-import { 
+import {
     BootScene,
-    PreloaderScene, 
-    MenuScene, 
-    AiSetupScene, 
-    CampaignLevelSelectScene, 
+    PreloaderScene,
+    MenuScene,
+    AiSetupScene,
+    CampaignLevelSelectScene,
     OnlineLobbyScene,
     SQRT3,
     getAiStats,
@@ -26,18 +26,19 @@ import {
     Player,
     Hex,
     GameMode,
-    AiDifficulty, 
-    AiPersonality, 
-    CampaignObjective, 
-    COLORS, 
-    getCampaignObjective, 
-    getSavedAiSettings, 
-    saveAiMatchResult, 
-    saveAiSettings, 
-    saveReconnectSession, 
-    clearReconnectSession, 
-    formatAiDifficulty, 
-    formatAiPersonality } from '../main';
+    AiDifficulty,
+    AiPersonality,
+    CampaignObjective,
+    COLORS,
+    getCampaignObjective,
+    getSavedAiSettings,
+    saveAiMatchResult,
+    saveAiSettings,
+    saveReconnectSession,
+    clearReconnectSession,
+    formatAiDifficulty,
+    formatAiPersonality,
+} from '../shared';
 
 export class HexConquestScene extends Phaser.Scene {
     private hexes = new Map<string, Hex>();
