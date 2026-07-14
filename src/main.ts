@@ -11,6 +11,7 @@ import { ProfileScene } from './scenes/ProfileScene';
 import { InventoryScene } from './scenes/InventoryScene';
 import { SettingsScene } from './scenes/SettingsScene';
 import { ShopScene } from './scenes/ShopScene';
+import { MissionCompleteScene } from './scenes/MissionCompleteScene';
 import {
   WIDTH,
   HEIGHT,
@@ -26,7 +27,7 @@ const config: Phaser.Types.Core.GameConfig = {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
     },
-    scene: [BootScene, PreloaderScene, MenuScene, WorldMapScene, ProfileScene, InventoryScene, SettingsScene, ShopScene, AiSetupScene, CampaignLevelSelectScene, OnlineLobbyScene, HexConquestScene],
+    scene: [BootScene, PreloaderScene, MenuScene, WorldMapScene, ProfileScene, InventoryScene, SettingsScene, ShopScene, AiSetupScene, CampaignLevelSelectScene, OnlineLobbyScene, HexConquestScene, MissionCompleteScene],
 };
 
 new Phaser.Game(config);

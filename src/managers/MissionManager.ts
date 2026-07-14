@@ -1,6 +1,7 @@
 import { MissionDefinition, getMissionById, MISSIONS } from '../data/missions';
 import { BattleConfig, MissionResult } from '../data/battleConfig';
-import { addMissionGold, addMissionXP, isMissionCompleted, markMissionCompleted } from '../state/MissionProgress';
+import { EconomyManager } from './EconomyManager';
+import { isMissionCompleted, markMissionCompleted } from '../state/PlayerProfile';
 
 export class MissionManager {
   getMissionById(id: string): MissionDefinition {
@@ -64,9 +65,9 @@ export class MissionManager {
     if (!mission) return false;
     if (result.goldEarned < 0 || result.xpEarned < 0) return false;
 
+    EconomyManager.processMissionResult(result);
+
     if (result.victory && !isMissionCompleted(result.missionId)) {
-      addMissionGold(result.goldEarned);
-      addMissionXP(result.xpEarned);
       markMissionCompleted(result.missionId);
     }
     return true;

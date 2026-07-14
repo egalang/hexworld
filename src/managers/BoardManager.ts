@@ -23,7 +23,7 @@ export class BoardManager {
             for (let r = r1; r <= r2; r++) {
                 const s = -q - r;
                 const owner = this.getInitialOwner(q, r, s, mode, campaignLevel);
-                const hex: Hex = { q, r, s, owner };
+                const hex: Hex = { q, r, s, owner, frozen: false, hexed: null };
                 this.hexes.set(this.key(q, r), hex);
             }
         }

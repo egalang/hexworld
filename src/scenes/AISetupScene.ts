@@ -2,7 +2,6 @@ import Phaser from 'phaser';
 import {
     getSavedAiSettings,
     formatAiPersonality,
-    COLORS,
     WIDTH,
     HEIGHT,
     SOUND_KEYS,
@@ -18,6 +17,7 @@ import {
     getAiStats,
     saveAiSettings,
 } from '../shared';
+import { Theme } from '../config/theme';
 
 export class AiSetupScene extends Phaser.Scene {
     private difficulty: AiDifficulty = 'normal';
@@ -37,34 +37,38 @@ export class AiSetupScene extends Phaser.Scene {
         this.personality = settings.personality;
         this.input.once('pointerdown', () => unlockAudio(this));
 
+        const bgColor = Phaser.Display.Color.HexStringToColor(Theme.ui.background).color;
+        const panelColor = Phaser.Display.Color.HexStringToColor(Theme.ui.panel).color;
+        const borderColor = Phaser.Display.Color.HexStringToColor(Theme.ui.border).color;
+
         const g = this.add.graphics();
-        g.fillGradientStyle(COLORS.bgTop, COLORS.bgTop, COLORS.bgBottom, COLORS.bgBottom, 1);
+        g.fillStyle(bgColor, 1);
         g.fillRect(0, 0, WIDTH, HEIGHT);
 
         this.add.text(WIDTH / 2, 64, 'PLAYER VS AI', {
             fontSize: '34px',
             fontStyle: 'bold',
-            color: '#ffffff',
+            color: Theme.ui.textTitle,
             stroke: '#000000',
             strokeThickness: 7,
         }).setOrigin(0.5);
 
         this.add.text(WIDTH / 2, 105, 'Customize the Red commander.', {
             fontSize: '16px',
-            color: '#eaf7ff',
+            color: Theme.ui.textSecondary,
             stroke: '#000000',
             strokeThickness: 3,
         }).setOrigin(0.5);
 
         const panel = this.add.graphics();
-        panel.fillStyle(0x163d5d, 0.78);
-        panel.lineStyle(3, 0xffffff, 0.6);
+        panel.fillStyle(panelColor, 0.92);
+        panel.lineStyle(3, borderColor, 0.7);
         panel.fillRoundedRect(24, 135, WIDTH - 48, 420, 18);
         panel.strokeRoundedRect(24, 135, WIDTH - 48, 420, 18);
 
         this.statsText = this.add.text(WIDTH / 2, 166, '', {
             fontSize: '15px',
-            color: '#ffffff',
+            color: Theme.ui.text,
             stroke: '#000000',
             strokeThickness: 3,
             align: 'center',
@@ -74,7 +78,7 @@ export class AiSetupScene extends Phaser.Scene {
         this.add.text(WIDTH / 2, 220, 'Difficulty', {
             fontSize: '18px',
             fontStyle: 'bold',
-            color: '#ffffff',
+            color: Theme.ui.text,
             stroke: '#000000',
             strokeThickness: 3,
         }).setOrigin(0.5);
@@ -82,7 +86,7 @@ export class AiSetupScene extends Phaser.Scene {
         this.difficultyLabel = this.add.text(WIDTH / 2, 258, '', {
             fontSize: '22px',
             fontStyle: 'bold',
-            color: '#ffe58a',
+            color: Theme.brand.goldLight,
             stroke: '#000000',
             strokeThickness: 4,
         }).setOrigin(0.5);
@@ -93,7 +97,7 @@ export class AiSetupScene extends Phaser.Scene {
         this.add.text(WIDTH / 2, 325, 'Personality', {
             fontSize: '18px',
             fontStyle: 'bold',
-            color: '#ffffff',
+            color: Theme.ui.text,
             stroke: '#000000',
             strokeThickness: 3,
         }).setOrigin(0.5);
@@ -101,7 +105,7 @@ export class AiSetupScene extends Phaser.Scene {
         this.personalityLabel = this.add.text(WIDTH / 2, 363, '', {
             fontSize: '22px',
             fontStyle: 'bold',
-            color: '#ffe58a',
+            color: Theme.brand.goldLight,
             stroke: '#000000',
             strokeThickness: 4,
         }).setOrigin(0.5);
@@ -111,7 +115,7 @@ export class AiSetupScene extends Phaser.Scene {
 
         this.statusText = this.add.text(WIDTH / 2, 455, '', {
             fontSize: '14px',
-            color: '#eaf7ff',
+            color: Theme.ui.textSecondary,
             stroke: '#000000',
             strokeThickness: 3,
             align: 'center',
@@ -162,14 +166,15 @@ export class AiSetupScene extends Phaser.Scene {
     }
 
     private createSmallAiButton(x: number, y: number, labelText: string, callback: () => void) {
+        const btnBg = Phaser.Display.Color.HexStringToColor(Theme.button.primary.bg).color;
         const button = this.add.container(x, y);
         const bg = this.add.graphics();
-        bg.fillStyle(0xb78a55, 1);
+        bg.fillStyle(btnBg, 1);
         bg.fillRoundedRect(-34, -24, 68, 48, 12);
         const label = this.add.text(0, 0, labelText, {
             fontSize: '24px',
             fontStyle: 'bold',
-            color: '#ffffff',
+            color: Theme.button.primary.text,
         }).setOrigin(0.5);
         button.add([bg, label]);
         button.setSize(68, 48);
@@ -181,14 +186,15 @@ export class AiSetupScene extends Phaser.Scene {
     }
 
     private createWideAiButton(x: number, y: number, labelText: string, callback: () => void) {
+        const btnBg = Phaser.Display.Color.HexStringToColor(Theme.button.primary.bg).color;
         const button = this.add.container(x, y);
         const bg = this.add.graphics();
-        bg.fillStyle(0xb78a55, 1);
+        bg.fillStyle(btnBg, 1);
         bg.fillRoundedRect(-150, -27, 300, 54, 14);
         const label = this.add.text(0, 0, labelText, {
             fontSize: '22px',
             fontStyle: 'bold',
-            color: '#ffffff',
+            color: Theme.button.primary.text,
         }).setOrigin(0.5);
         button.add([bg, label]);
         button.setSize(300, 54);

@@ -20,6 +20,7 @@ export interface WorldTile {
   action: WorldTileAction;
   actionId?: string;
   missionId?: string;
+  shopCategory?: 'weapons' | 'skills';
   unlocked: boolean;
 }
 
@@ -133,7 +134,8 @@ export const WORLD_TILES: WorldTile[] = [
     buildingId: undefined,
     action: "scene",
     actionId: "ShopScene",
-    unlocked: false,
+    shopCategory: "weapons",
+    unlocked: true,
   },
   {
     id: "mission_04",
@@ -156,7 +158,8 @@ export const WORLD_TILES: WorldTile[] = [
     buildingId: undefined,
     action: "scene",
     actionId: "ShopScene",
-    unlocked: false,
+    shopCategory: "skills",
+    unlocked: true,
   },
 
   // Row 4
@@ -245,6 +248,7 @@ export const WORLD_TILES: WorldTile[] = [
     buildingId: undefined,
     action: "scene",
     actionId: "ShopScene",
+    shopCategory: "weapons",
     unlocked: false,
   },
   {
@@ -365,6 +369,7 @@ export const WORLD_TILES: WorldTile[] = [
     buildingId: undefined,
     action: "scene",
     actionId: "ShopScene",
+    shopCategory: "skills",
     unlocked: false,
   },
 

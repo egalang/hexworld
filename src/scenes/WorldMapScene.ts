@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
 import { WIDTH, HEIGHT, playSound, SOUND_KEYS, unlockAudio } from '../shared';
-import { WORLD_TILES, TILE_COLORS } from '../data/worldMap';
+import { WORLD_TILES, TILE_COLORS, WorldTile } from '../data/worldMap';
+import { MusicManager } from './MusicManager';
 import { axialToPixel, drawHex, computeMapBounds } from '../data/hexUtils';
 import { MissionManager } from '../managers/MissionManager';
-import { getCompletedMissionIds } from '../state/MissionProgress';
+import { getCompletedMissionIds } from '../state/PlayerProfile';
 
 const HEX_SIZE = 35;
 
@@ -15,6 +16,7 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   create() {
+    this.input.once('pointerdown', () => MusicManager.play(this));
     this.add.image(0, 0, 'worldmap_bg').setOrigin(0, 0).setDisplaySize(WIDTH, HEIGHT);
 
     this.add.image(WIDTH, 0, 'worldmap_title').setOrigin(1, 0).setDisplaySize(200,200);
@@ -76,19 +78,21 @@ export class WorldMapScene extends Phaser.Scene {
         zone.on('pointerdown', () => {
           unlockAudio(this);
           playSound(this, SOUND_KEYS.confirm, 0.35);
-          this.dispatchTileAction(tile.action, tile.actionId, tile.missionId);
+          this.dispatchTileAction(tile);
         });
       }
     }
   }
 
-  private dispatchTileAction(action: string, actionId?: string, missionId?: string) {
-    if (action === 'scene' && actionId) {
-      if (missionId) {
-        const config = this.missionManager.getBattleConfig(missionId);
-        this.scene.start(actionId, { battleConfig: config, returnScene: 'WorldMapScene' });
+  private dispatchTileAction(tile: WorldTile) {
+    if (tile.action === 'scene' && tile.actionId) {
+      if (tile.missionId) {
+        const config = this.missionManager.getBattleConfig(tile.missionId);
+        this.scene.start(tile.actionId, { battleConfig: config, returnScene: 'WorldMapScene' });
+      } else if (tile.actionId === 'ShopScene') {
+        this.scene.start(tile.actionId, { category: tile.shopCategory ?? 'weapons' });
       } else {
-        this.scene.start(actionId);
+        this.scene.start(tile.actionId);
       }
     }
   }

@@ -18,6 +18,8 @@ export type Hex = {
   poly?: Phaser.GameObjects.Polygon;
   piece?: Phaser.GameObjects.Image;
   text?: Phaser.GameObjects.Text;
+  frozen: boolean;
+  hexed: Player | null;
 };
 
 export type OnlineRoomState = {
@@ -378,17 +380,4 @@ export function formatStars(stars: number) {
   return '★'.repeat(stars) + '☆'.repeat(3 - stars);
 }
 
-export const COLORS = {
-  bgTop: 0x1db9e8,
-  bgBottom: 0x163d5d,
-  empty: 0xf1f5e9,
-  emptyStroke: 0x1a1a1a,
-  blue: 0x1889ff,
-  blueDark: 0x003d8f,
-  red: 0xff2a2a,
-  redDark: 0x8f0000,
-  selected: 0xffdf40,
-  valid: 0x7cff83,
-  panel: 0xffffff,
-  text: '#ffffff',
-};
+export { Theme } from './config/theme';

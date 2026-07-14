@@ -10,9 +10,13 @@ export interface BattleConfig {
   rewardXP: number;
 }
 
+export type MissionOutcome = 'victory' | 'defeat' | 'abort';
+
 export interface MissionResult {
   missionId: string;
   victory: boolean;
   goldEarned: number;
   xpEarned: number;
+  outcome: MissionOutcome;
+  turns: number;
 }

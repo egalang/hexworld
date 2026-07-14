@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
 import {
-    COLORS,
     WIDTH,
     HEIGHT,
     CAMPAIGN_MAX_LEVEL,
@@ -11,6 +10,7 @@ import {
     playSound,
     SOUND_KEYS,
 } from '../shared';
+import { Theme } from '../config/theme';
 
 export class CampaignLevelSelectScene extends Phaser.Scene {
     private unlockedLevel = 1;
@@ -23,35 +23,39 @@ export class CampaignLevelSelectScene extends Phaser.Scene {
         this.unlockedLevel = getUnlockedCampaignLevel();
         this.input.once('pointerdown', () => unlockAudio(this));
 
+        const bgColor = Phaser.Display.Color.HexStringToColor(Theme.ui.background).color;
+        const panelColor = Phaser.Display.Color.HexStringToColor(Theme.ui.panel).color;
+        const borderColor = Phaser.Display.Color.HexStringToColor(Theme.ui.border).color;
+
         const g = this.add.graphics();
-        g.fillGradientStyle(COLORS.bgTop, COLORS.bgTop, COLORS.bgBottom, COLORS.bgBottom, 1);
+        g.fillStyle(bgColor, 1);
         g.fillRect(0, 0, WIDTH, HEIGHT);
 
         this.add.text(WIDTH / 2, 64, 'CAMPAIGN', {
             fontSize: '36px',
             fontStyle: 'bold',
-            color: '#ffffff',
+            color: Theme.ui.textTitle,
             stroke: '#000000',
             strokeThickness: 7,
         }).setOrigin(0.5);
 
         this.add.text(WIDTH / 2, 106, `Unlocked up to Level ${this.unlockedLevel}`, {
             fontSize: '17px',
-            color: '#eaf7ff',
+            color: Theme.ui.textSecondary,
             stroke: '#000000',
             strokeThickness: 3,
         }).setOrigin(0.5);
 
         const panel = this.add.graphics();
-        panel.fillStyle(0x163d5d, 0.78);
-        panel.lineStyle(3, 0xffffff, 0.6);
+        panel.fillStyle(panelColor, 0.92);
+        panel.lineStyle(3, borderColor, 0.7);
         panel.fillRoundedRect(24, 135, WIDTH - 48, 475, 18);
         panel.strokeRoundedRect(24, 135, WIDTH - 48, 475, 18);
 
         this.add.text(WIDTH / 2, 160, 'SELECT LEVEL', {
             fontSize: '18px',
             fontStyle: 'bold',
-            color: '#ffffff',
+            color: Theme.ui.text,
             stroke: '#000000',
             strokeThickness: 3,
         }).setOrigin(0.5);
@@ -83,15 +87,16 @@ export class CampaignLevelSelectScene extends Phaser.Scene {
         const card = this.add.container(x, y);
         const bg = this.add.graphics();
 
-        bg.fillStyle(unlocked ? (isNext ? 0xb78a55 : 0xffffff) : 0x777777, unlocked ? (isNext ? 1 : 0.18) : 0.42);
-        bg.lineStyle(2, unlocked ? 0xffffff : 0x444444, unlocked ? 0.75 : 0.55);
+        const goldInt = Phaser.Display.Color.HexStringToColor(Theme.brand.gold).color;
+        bg.fillStyle(unlocked ? (isNext ? goldInt : 0xffffff) : 0x777777, unlocked ? (isNext ? 1 : 0.18) : 0.42);
+        bg.lineStyle(2, unlocked ? goldInt : 0x444444, unlocked ? 0.75 : 0.55);
         bg.fillRoundedRect(-34, -27, 68, 54, 12);
         bg.strokeRoundedRect(-34, -27, 68, 54, 12);
 
         const title = this.add.text(0, -8, unlocked ? String(level) : '🔒', {
             fontSize: unlocked ? '24px' : '20px',
             fontStyle: 'bold',
-            color: unlocked && isNext ? '#ffffff' : unlocked ? '#ffffff' : '#d0d0d0',
+            color: unlocked && isNext ? Theme.ui.text : unlocked ? Theme.ui.text : Theme.ui.textDescription,
             stroke: '#000000',
             strokeThickness: 3,
         }).setOrigin(0.5);
@@ -99,7 +104,7 @@ export class CampaignLevelSelectScene extends Phaser.Scene {
         const savedStars = getSavedCampaignStars(level);
         const subtitle = this.add.text(0, 15, unlocked ? formatStars(savedStars) : 'Locked', {
             fontSize: unlocked ? '11px' : '10px',
-            color: unlocked ? '#ffe58a' : '#cccccc',
+            color: unlocked ? Theme.brand.goldLight : Theme.ui.textDescription,
             stroke: '#000000',
             strokeThickness: 2,
         }).setOrigin(0.5);
@@ -128,15 +133,16 @@ export class CampaignLevelSelectScene extends Phaser.Scene {
     }
 
     private createSmallCampaignButton(x: number, y: number, labelText: string, callback: () => void) {
+        const btnBg = Phaser.Display.Color.HexStringToColor(Theme.button.primary.bg).color;
         const button = this.add.container(x, y);
         const bg = this.add.graphics();
-        bg.fillStyle(0xb78a55, 1);
+        bg.fillStyle(btnBg, 1);
         bg.fillRoundedRect(-150, -27, 300, 54, 14);
 
         const label = this.add.text(0, 0, labelText, {
             fontSize: '22px',
             fontStyle: 'bold',
-            color: '#ffffff',
+            color: Theme.button.primary.text,
         }).setOrigin(0.5);
 
         button.add([bg, label]);

@@ -3,7 +3,6 @@ import {
     unlockAudio,
     playSound,
     SOUND_KEYS,
-    COLORS,
     WIDTH,
     HEIGHT,
     DEFAULT_PVP_SERVER_URL,
@@ -11,6 +10,7 @@ import {
     OnlineRoomState,
     saveReconnectSession,
 } from '../shared';
+import { Theme } from '../config/theme';
 
 export type OnlineRoomSummary = {
   room_code: string;
@@ -74,9 +74,9 @@ function getRoomStatus(room: OnlineRoomSummary) {
 }
 
 function getRoomStatusColor(room: OnlineRoomSummary) {
-  if (room.game_over) return '#c7c7c7';
-  if (room.red_joined) return '#7cc3ff';
-  return '#7cff83';
+  if (room.game_over) return Theme.ui.textDescription;
+  if (room.red_joined) return Theme.status.info;
+  return Theme.status.victory;
 }
 
 function countJoinableRooms(rooms: OnlineRoomSummary[]) {
@@ -100,34 +100,39 @@ export class OnlineLobbyScene extends Phaser.Scene {
 
   create() {
     this.input.once('pointerdown', () => unlockAudio(this));
+
+    const bgColor = Phaser.Display.Color.HexStringToColor(Theme.ui.background).color;
+    const panelColor = Phaser.Display.Color.HexStringToColor(Theme.ui.panel).color;
+    const borderColor = Phaser.Display.Color.HexStringToColor(Theme.ui.border).color;
+
     const g = this.add.graphics();
-    g.fillGradientStyle(COLORS.bgTop, COLORS.bgTop, COLORS.bgBottom, COLORS.bgBottom, 1);
+    g.fillStyle(bgColor, 1);
     g.fillRect(0, 0, WIDTH, HEIGHT);
 
     this.add.text(WIDTH / 2, 72, 'ONLINE PVP', {
       fontSize: '34px',
       fontStyle: 'bold',
-      color: '#ffffff',
+      color: Theme.ui.textTitle,
       stroke: '#000000',
       strokeThickness: 7,
     }).setOrigin(0.5);
 
     this.add.text(WIDTH / 2, 116, 'Browse rooms. Join only rooms marked Waiting.', {
       fontSize: '15px',
-      color: '#eaf7ff',
+      color: Theme.ui.textSecondary,
       stroke: '#000000',
       strokeThickness: 3,
     }).setOrigin(0.5);
 
     const panel = this.add.graphics();
-    panel.fillStyle(0x163d5d, 0.78);
-    panel.lineStyle(3, 0xffffff, 0.6);
+    panel.fillStyle(panelColor, 0.92);
+    panel.lineStyle(3, borderColor, 0.7);
     panel.fillRoundedRect(24, 145, WIDTH - 48, 300, 18);
     panel.strokeRoundedRect(24, 145, WIDTH - 48, 300, 18);
 
     this.statusText = this.add.text(WIDTH / 2, 172, 'Loading rooms...', {
       fontSize: '16px',
-      color: '#ffffff',
+      color: Theme.ui.text,
       stroke: '#000000',
       strokeThickness: 3,
       align: 'center',
@@ -161,7 +166,7 @@ export class OnlineLobbyScene extends Phaser.Scene {
     const label = this.add.text(0, 0, labelText, {
       fontSize: '23px',
       fontStyle: 'bold',
-      color: '#ffffff',
+      color: Theme.button.primary.text,
     }).setOrigin(0.5);
 
     button.add([bg, label]);
@@ -185,8 +190,9 @@ export class OnlineLobbyScene extends Phaser.Scene {
     label: Phaser.GameObjects.Text,
     enabled: boolean
   ) {
+    const btnBgInt = Phaser.Display.Color.HexStringToColor(Theme.button.primary.bg).color;
     bg.clear();
-    bg.fillStyle(enabled ? 0xb78a55 : 0x7f7f7f, enabled ? 1 : 0.72);
+    bg.fillStyle(enabled ? btnBgInt : 0x7f7f7f, enabled ? 1 : 0.72);
     bg.fillRoundedRect(-155, -29, 310, 58, 14);
     label.setAlpha(enabled ? 1 : 0.58);
     button.setAlpha(enabled ? 1 : 0.86);
@@ -311,9 +317,10 @@ export class OnlineLobbyScene extends Phaser.Scene {
       const status = getRoomStatus(room);
       const row = this.add.container(WIDTH / 2, y);
 
+      const goldInt = Phaser.Display.Color.HexStringToColor(Theme.brand.gold).color;
       const bg = this.add.graphics();
-      bg.fillStyle(selected ? COLORS.selected : 0xffffff, selected ? 0.92 : 0.14);
-      bg.lineStyle(2, selected ? 0xffffff : 0xdff5ff, selected ? 0.9 : 0.28);
+      bg.fillStyle(selected ? goldInt : 0xffffff, selected ? 0.92 : 0.14);
+      bg.lineStyle(2, selected ? goldInt : 0xdff5ff, selected ? 0.9 : 0.28);
       bg.fillRoundedRect(-180, -16, 360, 32, 10);
       bg.strokeRoundedRect(-180, -16, 360, 32, 10);
 

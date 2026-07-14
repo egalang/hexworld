@@ -1,6 +1,12 @@
-import { Player, Hex, COLORS } from '../shared';
+import Phaser from 'phaser';
+import { Player, Hex } from '../shared';
+import { Theme } from '../config/theme';
 import { BoardManager } from './BoardManager';
 import { UnitManager } from './UnitManager';
+
+const HEX_BLUE = Phaser.Display.Color.HexStringToColor(Theme.battle.blue).color;
+const HEX_RED = Phaser.Display.Color.HexStringToColor(Theme.battle.red).color;
+const HEX_NEUTRAL = Phaser.Display.Color.HexStringToColor(Theme.battle.neutral).color;
 
 export type VictoryResult = {
     gameOver: boolean;
@@ -17,6 +23,7 @@ export class CombatManager {
         const converted: Hex[] = [];
         for (const n of this.boardManager.getNeighbors(hex)) {
             if (n.owner && n.owner !== player) {
+                if (n.hexed && n.hexed !== player) continue;
                 this.captureTile(n, player);
                 converted.push(n);
             }
@@ -25,19 +32,22 @@ export class CombatManager {
     }
 
     countCaptureTargets(hex: Hex, player: Player): number {
-        return this.boardManager.getNeighbors(hex).filter(n => n.owner && n.owner !== player).length;
+        return this.boardManager.getNeighbors(hex).filter(
+            n => n.owner && n.owner !== player && !(n.hexed && n.hexed !== player)
+        ).length;
     }
 
     captureTile(hex: Hex, player: Player) {
+        hex.frozen = false;
         hex.owner = player;
-        hex.poly?.setFillStyle(player === 'blue' ? COLORS.blue : COLORS.red, 1);
+        hex.poly?.setFillStyle(player === 'blue' ? HEX_BLUE : HEX_RED, 1);
         this.unitManager.removeUnit(hex);
         this.unitManager.createUnit(hex, player);
     }
 
     destroyUnit(hex: Hex) {
         hex.owner = null;
-        hex.poly?.setFillStyle(COLORS.empty, 1);
+        hex.poly?.setFillStyle(HEX_NEUTRAL, 1);
         this.unitManager.removeUnit(hex);
     }
 

@@ -74,10 +74,11 @@ export class AIManager {
         const moves: { from: Hex; to: Hex; score: number }[] = [];
 
         for (const from of this.boardManager.getTiles()) {
-            if (from.owner !== player) continue;
+            if (from.owner !== player || from.frozen) continue;
 
             for (const to of this.boardManager.getNeighbors(from)) {
                 if (to.owner) continue;
+                if (to.hexed && to.hexed !== player) continue;
                 moves.push({ from, to, score: this.scoreMove(from, to, player) });
             }
         }
@@ -146,6 +147,7 @@ export class AIManager {
         let worstCounter = 0;
 
         for (const enemyFrom of this.boardManager.getTiles()) {
+            if (enemyFrom.frozen) continue;
             let simulatedOwner = enemyFrom.owner;
             if (enemyFrom.q === from.q && enemyFrom.r === from.r) simulatedOwner = null;
             if (enemyFrom.q === to.q && enemyFrom.r === to.r) simulatedOwner = player;
@@ -156,6 +158,7 @@ export class AIManager {
                 if (enemyTo.q === from.q && enemyTo.r === from.r) targetOwner = null;
                 if (enemyTo.q === to.q && enemyTo.r === to.r) targetOwner = player;
                 if (targetOwner !== null) continue;
+                if (enemyTo.hexed && enemyTo.hexed !== opponent) continue;
 
                 let counter = 0;
                 for (const n of this.boardManager.getNeighbors(enemyTo)) {
