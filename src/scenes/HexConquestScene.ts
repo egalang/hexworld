@@ -29,6 +29,8 @@ import {
     formatAiDifficulty,
     formatAiPersonality,
 } from '../shared';
+import { BattleConfig, MissionResult } from '../data/battleConfig';
+import { MissionManager } from '../managers/MissionManager';
 import { BoardManager } from '../managers/BoardManager';
 import { UnitManager } from '../managers/UnitManager';
 import { CombatManager } from '../managers/CombatManager';
@@ -68,6 +70,11 @@ export class HexConquestScene extends Phaser.Scene {
 
     private aiInitDifficulty?: AiDifficulty;
     private aiInitPersonality?: AiPersonality;
+    private missionManager = new MissionManager();
+    private battleConfig?: BattleConfig;
+    private returnScene = '';
+    private isMissionMode = false;
+    private rewardsGranted = false;
 
     init(data: {
         mode?: GameMode;
@@ -78,6 +85,8 @@ export class HexConquestScene extends Phaser.Scene {
         playerColor?: Player | null;
         aiDifficulty?: AiDifficulty;
         aiPersonality?: AiPersonality;
+        battleConfig?: BattleConfig;
+        returnScene?: string;
     }) {
         this.mode = data.mode ?? 'ai';
         this.campaignLevel = data.campaignLevel ?? 1;
@@ -88,6 +97,13 @@ export class HexConquestScene extends Phaser.Scene {
         this.roomCode = data.roomCode ?? '';
         this.playerId = data.playerId ?? '';
         this.playerColor = data.playerColor ?? null;
+
+        this.battleConfig = data.battleConfig;
+        this.returnScene = data.returnScene ?? '';
+        this.isMissionMode = !!data.battleConfig;
+        if (this.isMissionMode) {
+            this.aiInitDifficulty = this.battleConfig!.aiDifficulty;
+        }
     }
 
     private applyAiInitData() {
@@ -114,6 +130,7 @@ export class HexConquestScene extends Phaser.Scene {
         this.victorySoundPlayed = false;
         this.centerHoldTurns = 0;
         this.lastObjectiveTurnTracked = 0;
+        this.rewardsGranted = false;
     }
 
     create() {
@@ -161,6 +178,7 @@ export class HexConquestScene extends Phaser.Scene {
     }
 
     private getModeLabel() {
+        if (this.isMissionMode) return `Mission: ${this.battleConfig!.missionId}`;
         if (this.mode === 'campaign') return `Level ${this.campaignLevel}: ${getCampaignObjective(this.campaignLevel).title}`;
         if (this.mode === 'ai') return `AI ${formatAiDifficulty(this.aiManager.getDifficulty())} — ${formatAiPersonality(this.aiManager.getPersonality())}`;
         if (this.mode === 'local') return 'Local 2 Player';
@@ -195,8 +213,16 @@ export class HexConquestScene extends Phaser.Scene {
     }
 
     private createBottomButtons() {
-        this.createSmallButton(WIDTH / 2 - 93, 740, 'Menu', () => this.backToMenu());
-        this.createSmallButton(WIDTH / 2 + 93, 740, this.mode === 'online' ? 'Leave' : 'Restart', () => this.restartGame());
+        if (this.isMissionMode) {
+            this.createSmallButton(WIDTH / 2 - 93, 740, 'World Map', () => {
+                this.registry.remove('lastMissionResult');
+                this.scene.start('WorldMapScene');
+            });
+            this.createSmallButton(WIDTH / 2 + 93, 740, 'Restart', () => this.restartGame());
+        } else {
+            this.createSmallButton(WIDTH / 2 - 93, 740, 'Menu', () => this.backToMenu());
+            this.createSmallButton(WIDTH / 2 + 93, 740, this.mode === 'online' ? 'Leave' : 'Restart', () => this.restartGame());
+        }
     }
 
     private createSmallButton(x: number, y: number, labelText: string, callback: () => void) {
@@ -688,9 +714,24 @@ export class HexConquestScene extends Phaser.Scene {
         }
 
         const counts = this.boardManager.getCounts();
-        this.saveAiResultIfNeeded(winner);
         this.statusText.setText(`${winner.toUpperCase()} WINS!`);
         this.statusText.setColor(winner === 'blue' ? '#7cc3ff' : '#ff8f8f');
+
+        if (this.isMissionMode) {
+            const result: MissionResult = {
+                missionId: this.battleConfig!.missionId,
+                victory: winner === 'blue',
+                goldEarned: winner === 'blue' ? this.battleConfig!.rewardGold : 0,
+                xpEarned: winner === 'blue' ? this.battleConfig!.rewardXP : 0,
+            };
+            this.missionManager.processResult(result);
+            this.registry.set('lastMissionResult', result);
+            this.rewardsGranted = true;
+            this.countText.setText(`Final Score  Blue ${counts.blue}  |  Red ${counts.red}`);
+            this.clearHighlights();
+            this.showEndButtons(winner);
+            return;
+        }
 
         if (this.mode === 'ai') {
             const rematch = this.createWideButton(WIDTH / 2, 585, 'Rematch', () => {
@@ -840,6 +881,18 @@ export class HexConquestScene extends Phaser.Scene {
         for (const b of this.endButtons) b.destroy();
         this.endButtons = [];
 
+        if (this.isMissionMode) {
+            const mapButton = this.createWideButton(WIDTH / 2, 620, 'Return to World Map', () => {
+                this.scene.start('WorldMapScene');
+            });
+            this.endButtons.push(mapButton);
+            if (winner === 'red') {
+                const retry = this.createWideButton(WIDTH / 2, 685, 'Retry', () => this.restartGame());
+                this.endButtons.push(retry);
+            }
+            return;
+        }
+
         if (this.mode === 'campaign' && winner === 'blue') {
             const unlockedNext = Math.min(this.campaignLevel + 1, CAMPAIGN_MAX_LEVEL);
             saveUnlockedCampaignLevel(unlockedNext);
@@ -961,6 +1014,15 @@ export class HexConquestScene extends Phaser.Scene {
         if (this.mode === 'online') {
             clearReconnectSession();
             this.scene.start('OnlineLobbyScene');
+            return;
+        }
+
+        if (this.isMissionMode) {
+            this.resetState();
+            this.scene.restart({
+                battleConfig: this.battleConfig,
+                returnScene: this.returnScene,
+            });
             return;
         }
 

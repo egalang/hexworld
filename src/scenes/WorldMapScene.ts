@@ -2,10 +2,14 @@ import Phaser from 'phaser';
 import { WIDTH, HEIGHT, playSound, SOUND_KEYS, unlockAudio } from '../shared';
 import { WORLD_TILES, TILE_COLORS } from '../data/worldMap';
 import { axialToPixel, drawHex, computeMapBounds } from '../data/hexUtils';
+import { MissionManager } from '../managers/MissionManager';
+import { getCompletedMissionIds } from '../state/MissionProgress';
 
 const HEX_SIZE = 35;
 
 export class WorldMapScene extends Phaser.Scene {
+  private missionManager = new MissionManager();
+
   constructor() {
     super('WorldMapScene');
   }
@@ -14,6 +18,9 @@ export class WorldMapScene extends Phaser.Scene {
     this.add.image(0, 0, 'worldmap_bg').setOrigin(0, 0).setDisplaySize(WIDTH, HEIGHT);
 
     this.add.image(WIDTH, 0, 'worldmap_title').setOrigin(1, 0).setDisplaySize(200,200);
+
+    const completedIds = new Set(getCompletedMissionIds());
+    const unlockedMissions = new Set(this.missionManager.getUnlockedMissions(completedIds));
 
     const bounds = computeMapBounds(WORLD_TILES, HEX_SIZE);
     const mapCenterX = (bounds.minX + bounds.maxX) / 2;
@@ -28,8 +35,12 @@ export class WorldMapScene extends Phaser.Scene {
       const screenX = pos.x + offsetX;
       const screenY = pos.y + offsetY + 30;
 
+      const isUnlocked = tile.missionId
+        ? unlockedMissions.has(tile.missionId)
+        : tile.unlocked;
+
       const baseColor = Phaser.Display.Color.HexStringToColor(TILE_COLORS[tile.type]).color;
-      const fillColor = tile.unlocked ? baseColor : Phaser.Display.Color.GetColor(
+      const fillColor = isUnlocked ? baseColor : Phaser.Display.Color.GetColor(
         Phaser.Display.Color.ValueToColor(baseColor).red >> 1,
         Phaser.Display.Color.ValueToColor(baseColor).green >> 1,
         Phaser.Display.Color.ValueToColor(baseColor).blue >> 1,
@@ -50,7 +61,7 @@ export class WorldMapScene extends Phaser.Scene {
         align: 'center',
       }).setOrigin(0.5);
 
-      if (tile.unlocked) {
+      if (isUnlocked) {
         const zone = this.add.zone(screenX, screenY, HEX_SIZE * 1.8, HEX_SIZE * 1.8)
           .setInteractive({ useHandCursor: true });
 
@@ -65,15 +76,20 @@ export class WorldMapScene extends Phaser.Scene {
         zone.on('pointerdown', () => {
           unlockAudio(this);
           playSound(this, SOUND_KEYS.confirm, 0.35);
-          this.dispatchTileAction(tile.action, tile.actionId);
+          this.dispatchTileAction(tile.action, tile.actionId, tile.missionId);
         });
       }
     }
   }
 
-  private dispatchTileAction(action: string, actionId?: string) {
+  private dispatchTileAction(action: string, actionId?: string, missionId?: string) {
     if (action === 'scene' && actionId) {
-      this.scene.start(actionId);
+      if (missionId) {
+        const config = this.missionManager.getBattleConfig(missionId);
+        this.scene.start(actionId, { battleConfig: config, returnScene: 'WorldMapScene' });
+      } else {
+        this.scene.start(actionId);
+      }
     }
   }
 }
