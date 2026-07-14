@@ -1418,6 +1418,19 @@ export class OnlineLobbyScene extends Phaser.Scene {
   }
 }
 
+const config: Phaser.Types.Core.GameConfig = {
+    type: Phaser.AUTO,
+    width: WIDTH,
+    height: HEIGHT,
+    parent: 'game',
+    backgroundColor: '#101826',
+    scale: {
+        mode: Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+    },
+    scene: [BootScene, PreloaderScene, MenuScene, AiSetupScene, CampaignLevelSelectScene, OnlineLobbyScene, HexConquestScene],
+};
+
 new Phaser.Game(config);
 
 class MusicManager {
