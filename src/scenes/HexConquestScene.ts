@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
 import {
-    SQRT3,
     getAiStats,
     saveUnlockedCampaignLevel,
     saveCampaignStars,
@@ -16,7 +15,6 @@ import {
     unlockAudio,
     WIDTH,
     HEIGHT,
-    BOARD_RADIUS,
     Player,
     Hex,
     GameMode,
@@ -26,31 +24,27 @@ import {
     COLORS,
     getCampaignObjective,
     getSavedAiSettings,
-    saveAiMatchResult,
-    saveAiSettings,
     saveReconnectSession,
     clearReconnectSession,
     formatAiDifficulty,
     formatAiPersonality,
 } from '../shared';
+import { BoardManager } from '../managers/BoardManager';
+import { UnitManager } from '../managers/UnitManager';
+import { CombatManager } from '../managers/CombatManager';
+import { TurnManager } from '../managers/TurnManager';
+import { AIManager } from '../managers/AIManager';
 
 export class HexConquestScene extends Phaser.Scene {
-    private hexes = new Map<string, Hex>();
-    private currentPlayer: Player = 'blue';
-    private selected: Hex | null = null;
-    private turn = 1;
-    private gameOver = false;
+    private boardManager!: BoardManager;
+    private unitManager!: UnitManager;
+    private combatManager!: CombatManager;
+    private turnManager!: TurnManager;
+    private aiManager!: AIManager;
     private mode: GameMode = 'ai';
     private campaignLevel = 1;
-    private aiPlayer: Player | null = 'red';
-    private aiDifficulty: AiDifficulty = 'normal';
-    private aiPersonality: AiPersonality = 'balanced';
-    private aiResultSaved = false;
-    private aiThinking = false;
     private statusText!: Phaser.GameObjects.Text;
     private countText!: Phaser.GameObjects.Text;
-    private boardCenterX = (WIDTH / 2) + 25;
-    private boardCenterY = 475;
     private validMoves = new Set<string>();
     private previewTexts: Phaser.GameObjects.Text[] = [];
     private endButtons: Phaser.GameObjects.Container[] = [];
@@ -72,6 +66,9 @@ export class HexConquestScene extends Phaser.Scene {
         super('HexConquestScene');
     }
 
+    private aiInitDifficulty?: AiDifficulty;
+    private aiInitPersonality?: AiPersonality;
+
     init(data: {
         mode?: GameMode;
         campaignLevel?: number;
@@ -84,10 +81,8 @@ export class HexConquestScene extends Phaser.Scene {
     }) {
         this.mode = data.mode ?? 'ai';
         this.campaignLevel = data.campaignLevel ?? 1;
-        this.aiPlayer = this.mode === 'local' || this.mode === 'online' ? null : 'red';
-        const savedAiSettings = getSavedAiSettings();
-        this.aiDifficulty = data.aiDifficulty ?? savedAiSettings.difficulty;
-        this.aiPersonality = data.aiPersonality ?? savedAiSettings.personality;
+        this.aiInitDifficulty = data.aiDifficulty;
+        this.aiInitPersonality = data.aiPersonality;
 
         this.onlineServerUrl = data.onlineServerUrl ?? '';
         this.roomCode = data.roomCode ?? '';
@@ -95,13 +90,19 @@ export class HexConquestScene extends Phaser.Scene {
         this.playerColor = data.playerColor ?? null;
     }
 
+    private applyAiInitData() {
+        const savedAiSettings = getSavedAiSettings();
+        const aiPlayer = this.mode === 'local' || this.mode === 'online' ? null : 'red';
+        this.aiManager.setAiPlayer(aiPlayer);
+        this.aiManager.setDifficulty(this.aiInitDifficulty ?? savedAiSettings.difficulty);
+        this.aiManager.setPersonality(this.aiInitPersonality ?? savedAiSettings.personality);
+    }
+
     private resetState() {
-        this.hexes.clear();
-        this.currentPlayer = 'blue';
-        this.selected = null;
-        this.turn = 1;
-        this.gameOver = false;
-        this.aiThinking = false;
+        this.boardManager?.resetBoard();
+        this.unitManager?.selectUnit(null);
+        this.turnManager?.reset();
+        this.aiManager?.reset();
         this.validMoves.clear();
         this.previewTexts = [];
         this.endButtons = [];
@@ -111,7 +112,6 @@ export class HexConquestScene extends Phaser.Scene {
         this.onlineAnimating = false;
         this.lastAppliedOnlineUpdate = 0;
         this.victorySoundPlayed = false;
-        this.aiResultSaved = false;
         this.centerHoldTurns = 0;
         this.lastObjectiveTurnTracked = 0;
     }
@@ -119,6 +119,12 @@ export class HexConquestScene extends Phaser.Scene {
     create() {
         this.input.once('pointerdown', () => unlockAudio(this));
         this.resetState();
+        this.boardManager = new BoardManager();
+        this.unitManager = new UnitManager(this, this.boardManager);
+        this.combatManager = new CombatManager(this.boardManager, this.unitManager);
+        this.turnManager = new TurnManager();
+        this.aiManager = new AIManager(this.boardManager, this.combatManager, this.unitManager);
+        this.applyAiInitData();
         this.createBackground();
         this.createHeader();
         this.createBoard();
@@ -156,7 +162,7 @@ export class HexConquestScene extends Phaser.Scene {
 
     private getModeLabel() {
         if (this.mode === 'campaign') return `Level ${this.campaignLevel}: ${getCampaignObjective(this.campaignLevel).title}`;
-        if (this.mode === 'ai') return `AI ${formatAiDifficulty(this.aiDifficulty)} — ${formatAiPersonality(this.aiPersonality)}`;
+        if (this.mode === 'ai') return `AI ${formatAiDifficulty(this.aiManager.getDifficulty())} — ${formatAiPersonality(this.aiManager.getPersonality())}`;
         if (this.mode === 'local') return 'Local 2 Player';
         if (this.mode === 'online') return `Online PvP Room ${this.roomCode}`;
         return 'Online Multiplayer';
@@ -217,99 +223,52 @@ export class HexConquestScene extends Phaser.Scene {
     }
 
     private createBoard() {
-        this.hexes.clear();
-        this.selected = null;
+        this.unitManager.selectUnit(null);
         this.validMoves.clear();
         this.previewTexts = [];
 
-        for (let q = -BOARD_RADIUS; q <= BOARD_RADIUS; q++) {
-            const r1 = Math.max(-BOARD_RADIUS, -q - BOARD_RADIUS);
-            const r2 = Math.min(BOARD_RADIUS, -q + BOARD_RADIUS);
-            for (let r = r1; r <= r2; r++) {
-                const s = -q - r;
-                const owner = this.getInitialOwner(q, r, s);
-                const hex: Hex = { q, r, s, owner };
-                this.hexes.set(this.key(q, r), hex);
-            }
-        }
-
-        for (const hex of this.hexes.values()) {
+        this.boardManager.createBoard(this.mode, this.campaignLevel);
+        for (const hex of this.boardManager.getTiles()) {
             this.drawHex(hex);
         }
     }
 
-    private getInitialOwner(q: number, _r: number, s: number): Owner {
-        if (q <= -3 || s >= 3) return 'blue';
-        if (q >= 3 || s <= -3) return 'red';
-
-        if (this.mode === 'campaign' && this.campaignLevel >= 3 && (q === 2 || s === -2) && Phaser.Math.Between(0, 100) < 24) {
-            return 'red';
-        }
-
-        if (this.mode === 'campaign' && this.campaignLevel >= 5 && (q === -2 || s === 2) && Phaser.Math.Between(0, 100) < 12) {
-            return null;
-        }
-
-        return null;
-    }
-
     private drawHex(hex: Hex) {
-        const { x, y } = this.hexToPixel(hex.q, hex.r);
-        const points = this.getHexPoints(HEX_SIZE - 1).flatMap(p => [p.x, p.y]);
+        const { x, y } = this.boardManager.hexToPixel(hex.q, hex.r);
+        const points = this.boardManager.getHexPoints(HEX_SIZE - 1).flatMap(p => [p.x, p.y]);
         const fill = hex.owner === 'blue' ? COLORS.blue : hex.owner === 'red' ? COLORS.red : COLORS.empty;
 
         const poly = this.add.polygon(x, y, points, fill, 1);
         poly.setStrokeStyle(2, COLORS.emptyStroke, 1);
-        poly.setInteractive(new Phaser.Geom.Polygon(this.getHexPoints(HEX_SIZE - 1)), Phaser.Geom.Polygon.Contains);
+        poly.setInteractive(new Phaser.Geom.Polygon(this.boardManager.getHexPoints(HEX_SIZE - 1)), Phaser.Geom.Polygon.Contains);
         poly.on('pointerdown', () => this.handleHexTap(hex));
         hex.poly = poly;
 
-        if (hex.owner) this.createPiece(hex);
-    }
-
-    private createPiece(hex: Hex) {
-        if (!hex.owner) return;
-
-        const { x, y } = this.hexToPixel(hex.q, hex.r);
-
-        const PIECE_OFFSET_X = -25;
-        const PIECE_OFFSET_Y = -30;
-
-        const texture = hex.owner === 'blue' ? BLUE_SOLDIER_KEY : RED_SOLDIER_KEY;
-
-        const sprite = this.add.image(
-            x + PIECE_OFFSET_X,
-            y + PIECE_OFFSET_Y,
-            texture
-        );
-
-        sprite.setDisplaySize(44, 44);
-        sprite.setDepth(5);
-
-        hex.piece = sprite;
+        if (hex.owner) this.unitManager.createUnit(hex, hex.owner);
     }
 
     private handleHexTap(hex: Hex) {
-        if (this.gameOver || this.aiThinking || this.onlineSubmittingMove || this.onlineAnimating) return;
+        if (this.turnManager.isGameOver() || this.aiManager.isThinking() || this.onlineSubmittingMove || this.onlineAnimating) return;
 
         if (this.mode === 'online') {
             if (!this.playerColor) return;
-            if (this.currentPlayer !== this.playerColor) {
+            if (this.turnManager.getCurrentPlayer() !== this.playerColor) {
                 this.shakeInvalid(hex);
                 return;
             }
-        } else if (this.currentPlayer === this.aiPlayer) {
+        } else if (this.turnManager.getCurrentPlayer() === this.aiManager.getAiPlayer()) {
             return;
         }
 
-        if (hex.owner === this.currentPlayer) {
+        if (hex.owner === this.turnManager.getCurrentPlayer()) {
             this.selectHex(hex);
             return;
         }
 
-        if (this.selected && !hex.owner && this.validMoves.has(this.key(hex.q, hex.r))) {
+        const sel = this.unitManager.getSelectedUnit();
+        if (sel && !hex.owner && this.validMoves.has(this.boardManager.key(hex.q, hex.r))) {
             if (this.mode === 'online') {
-                this.submitOnlineMove(this.selected, hex);
+                this.submitOnlineMove(sel, hex);
             } else {
                 this.moveSelectedTo(hex);
             }
@@ -326,23 +285,23 @@ export class HexConquestScene extends Phaser.Scene {
 
         playSound(this, SOUND_KEYS.select, 0.42);
         this.clearHighlights();
-        this.selected = hex;
+        this.unitManager.selectUnit(hex);
         hex.poly?.setStrokeStyle(5, COLORS.selected, 1);
 
-        for (const n of this.neighbors(hex)) {
+        for (const n of this.boardManager.getNeighbors(hex)) {
             if (!n.owner) {
-                this.validMoves.add(this.key(n.q, n.r));
+                this.validMoves.add(this.boardManager.key(n.q, n.r));
                 n.poly?.setFillStyle(COLORS.valid, 1);
-                this.createMovePreview(n, this.currentPlayer);
+                this.createMovePreview(n, this.turnManager.getCurrentPlayer());
             }
         }
     }
 
     private createMovePreview(target: Hex, player: Player) {
-        const captureCount = this.countAdjacentEnemies(target, player);
+        const captureCount = this.combatManager.countCaptureTargets(target, player);
         if (captureCount <= 0) return;
 
-        const { x, y } = this.hexToPixel(target.q, target.r);
+        const { x, y } = this.boardManager.hexToPixel(target.q, target.r);
 
         const preview = this.add.text(x, y, `+${captureCount}`, {
             fontSize: '19px',
@@ -366,57 +325,34 @@ export class HexConquestScene extends Phaser.Scene {
     }
 
     private moveSelectedTo(target: Hex) {
-        if (!this.selected) return;
-        const from = this.selected;
-        const mover: Player = this.currentPlayer;
+        const from = this.unitManager.getSelectedUnit();
+        if (!from) return;
+        const mover: Player = this.turnManager.getCurrentPlayer();
 
-        from.owner = null;
-        if (from.piece) {
-            from.piece.destroy();
-            from.piece = undefined;
-        }
+        this.unitManager.moveUnit(from, target, mover);
         from.poly?.setFillStyle(COLORS.empty, 1);
-
-        target.owner = mover;
         target.poly?.setFillStyle(mover === 'blue' ? COLORS.blue : COLORS.red, 1);
-        this.createPiece(target);
         playSound(this, SOUND_KEYS.move, 0.5);
 
-        this.selected = null;
+        this.unitManager.selectUnit(null);
         this.clearHighlights();
 
-        const converted = this.convertAdjacent(target, mover);
+        const converted = this.combatManager.attack(target, mover);
         if (converted.length > 0) playSound(this, SOUND_KEYS.convert, 0.5);
         this.flashConversions(target, converted);
 
         this.time.delayedCall(250, () => {
             if (this.checkVictory()) return;
 
-            this.currentPlayer = this.currentPlayer === 'blue' ? 'red' : 'blue';
-            this.turn++;
+            this.turnManager.nextPlayer();
             this.updateHud();
 
             if (this.checkVictory()) return;
 
-            if (this.currentPlayer === this.aiPlayer) {
+            if (this.turnManager.getCurrentPlayer() === this.aiManager.getAiPlayer()) {
                 this.time.delayedCall(500, () => this.runAiTurn());
             }
         });
-    }
-
-    private convertAdjacent(hex: Hex, player: Player): Hex[] {
-        const converted: Hex[] = [];
-        for (const n of this.neighbors(hex)) {
-            if (n.owner && n.owner !== player) {
-                n.owner = player;
-                n.poly?.setFillStyle(player === 'blue' ? COLORS.blue : COLORS.red, 1);
-                n.piece?.destroy();
-                n.piece = undefined;
-                this.createPiece(n);
-                converted.push(n);
-            }
-        }
-        return converted;
     }
 
     private flashConversions(center: Hex, converted: Hex[]) {
@@ -444,15 +380,15 @@ export class HexConquestScene extends Phaser.Scene {
     }
 
     private runAiTurn() {
-        if (this.gameOver || this.currentPlayer !== this.aiPlayer || this.aiThinking) return;
+        if (this.turnManager.isGameOver() || !this.aiManager.isAiTurn(this.turnManager.getCurrentPlayer()) || this.aiManager.isThinking()) return;
 
-        const move = this.getBestAiMove(this.aiPlayer);
+        const move = this.aiManager.getBestMove(this.aiManager.getAiPlayer()!, this.mode, this.campaignLevel);
         if (!move) {
             this.checkVictory();
             return;
         }
 
-        this.aiThinking = true;
+        this.aiManager.setThinking(true);
         this.clearHighlights();
         this.updateHud();
 
@@ -460,115 +396,15 @@ export class HexConquestScene extends Phaser.Scene {
         move.to.poly?.setFillStyle(COLORS.valid, 1);
 
         this.time.delayedCall(350, () => {
-            this.selected = move.from;
+            this.unitManager.selectUnit(move.from);
             this.validMoves.clear();
-            this.validMoves.add(this.key(move.to.q, move.to.r));
-            this.aiThinking = false;
+            this.validMoves.add(this.boardManager.key(move.to.q, move.to.r));
+            this.aiManager.setThinking(false);
             this.moveSelectedTo(move.to);
         });
     }
 
-    private getBestAiMove(player: Player): { from: Hex; to: Hex; score: number } | null {
-        const moves: { from: Hex; to: Hex; score: number }[] = [];
 
-        for (const from of this.hexes.values()) {
-            if (from.owner !== player) continue;
-
-            for (const to of this.neighbors(from)) {
-                if (to.owner) continue;
-                moves.push({ from, to, score: this.scoreAiMove(from, to, player) });
-            }
-        }
-
-        if (!moves.length) return null;
-        moves.sort((a, b) => b.score - a.score);
-
-
-        if (this.mode === 'campaign') {
-            const pickFromTop = Math.max(1, 6 - this.campaignLevel);
-            const maxIndex = Math.min(pickFromTop, moves.length) - 1;
-            return moves[Phaser.Math.Between(0, maxIndex)];
-        }
-
-        if (this.aiDifficulty === 'easy') {
-            const maxIndex = Math.min(moves.length - 1, Math.max(2, Math.floor(moves.length * 0.55)));
-            return moves[Phaser.Math.Between(0, maxIndex)];
-        }
-
-        if (this.aiDifficulty === 'normal') {
-            const maxIndex = Math.min(2, moves.length - 1);
-            return moves[Phaser.Math.Between(0, maxIndex)];
-        }
-
-        if (this.aiDifficulty === 'hard') {
-            const maxIndex = Math.min(1, moves.length - 1);
-            return moves[Phaser.Math.Between(0, maxIndex)];
-        }
-
-        return moves[0];
-    }
-
-    private scoreAiMove(from: Hex, to: Hex, player: Player): number {
-        const converted = this.countAdjacentEnemies(to, player);
-        const centerDistance = Math.abs(to.q) + Math.abs(to.r) + Math.abs(to.s);
-        const centerBonus = (BOARD_RADIUS * 3 - centerDistance) * 2;
-        const adjacentFriendlies = this.neighbors(to).filter(n => n.owner === player).length;
-        const nearbyEnemies = this.neighbors(to).filter(n => n.owner && n.owner !== player).length;
-        const randomBonus = this.aiPersonality === 'chaotic' ? Phaser.Math.Between(0, 85) : Phaser.Math.Between(0, 8);
-
-        let score = converted * 100 + centerBonus + adjacentFriendlies * 8 + randomBonus;
-
-        if (this.aiPersonality === 'aggressive') {
-            score += converted * 65 + nearbyEnemies * 10;
-        } else if (this.aiPersonality === 'defensive') {
-            score += adjacentFriendlies * 22 - nearbyEnemies * 4;
-        } else if (this.aiPersonality === 'center') {
-            score += centerBonus * 6;
-        } else if (this.aiPersonality === 'balanced') {
-            score += converted * 18 + centerBonus * 2 + adjacentFriendlies * 10;
-        }
-
-        if (this.aiDifficulty === 'easy') {
-            score += Phaser.Math.Between(-45, 45);
-        } else if (this.aiDifficulty === 'hard') {
-            score += converted * 20 + centerBonus * 2;
-        } else if (this.aiDifficulty === 'expert') {
-            score += converted * 35 + centerBonus * 3 + adjacentFriendlies * 12;
-            score -= this.estimateOpponentCounterRisk(from, to, player) * 45;
-        }
-
-        return score;
-    }
-
-    private estimateOpponentCounterRisk(from: Hex, to: Hex, player: Player): number {
-        const opponent: Player = player === 'blue' ? 'red' : 'blue';
-        let worstCounter = 0;
-
-        for (const enemyFrom of this.hexes.values()) {
-            let simulatedOwner = enemyFrom.owner;
-            if (enemyFrom.q === from.q && enemyFrom.r === from.r) simulatedOwner = null;
-            if (enemyFrom.q === to.q && enemyFrom.r === to.r) simulatedOwner = player;
-            if (simulatedOwner !== opponent) continue;
-
-            for (const enemyTo of this.neighbors(enemyFrom)) {
-                let targetOwner = enemyTo.owner;
-                if (enemyTo.q === from.q && enemyTo.r === from.r) targetOwner = null;
-                if (enemyTo.q === to.q && enemyTo.r === to.r) targetOwner = player;
-                if (targetOwner !== null) continue;
-
-                let counter = 0;
-                for (const n of this.neighbors(enemyTo)) {
-                    let nOwner = n.owner;
-                    if (n.q === from.q && n.r === from.r) nOwner = null;
-                    if (n.q === to.q && n.r === to.r) nOwner = player;
-                    if (nOwner === player) counter++;
-                }
-                worstCounter = Math.max(worstCounter, counter);
-            }
-        }
-
-        return worstCounter;
-    }
 
     private async startOnlinePolling() {
         await this.pollOnlineState();
@@ -607,7 +443,7 @@ export class HexConquestScene extends Phaser.Scene {
 
         this.onlineSubmittingMove = true;
         this.onlineInteracting = false;
-        this.selected = null;
+        this.unitManager.selectUnit(null);
         this.clearHighlights();
         this.statusText.setText('SUBMITTING MOVE...');
         playSound(this, SOUND_KEYS.move, 0.45);
@@ -645,37 +481,37 @@ export class HexConquestScene extends Phaser.Scene {
 
     private applyOnlineCellsWithAnimation(state: OnlineRoomState) {
         const oldOwners = new Map<string, Owner>();
-        for (const h of this.hexes.values()) {
-            oldOwners.set(this.key(h.q, h.r), h.owner);
+        for (const h of this.boardManager.getTiles()) {
+            oldOwners.set(this.boardManager.key(h.q, h.r), h.owner);
         }
 
         const changedCells = state.cells.filter(cell => {
-            const previous = oldOwners.get(this.key(cell.q, cell.r));
+            const previous = oldOwners.get(this.boardManager.key(cell.q, cell.r));
             return previous !== cell.owner;
         });
 
         if (!changedCells.length) return;
 
         const fromCell = changedCells.find(cell => {
-            const previous = oldOwners.get(this.key(cell.q, cell.r));
+            const previous = oldOwners.get(this.boardManager.key(cell.q, cell.r));
             return previous !== null && cell.owner === null;
         });
 
         const toCell = changedCells.find(cell => {
-            const previous = oldOwners.get(this.key(cell.q, cell.r));
+            const previous = oldOwners.get(this.boardManager.key(cell.q, cell.r));
             return previous === null && cell.owner !== null;
         });
 
         const mover = toCell?.owner ?? null;
-        const fromHex = fromCell ? this.hexes.get(this.key(fromCell.q, fromCell.r)) : undefined;
-        const toHex = toCell ? this.hexes.get(this.key(toCell.q, toCell.r)) : undefined;
+        const fromHex = fromCell ? this.boardManager.getTile(fromCell.q, fromCell.r) : undefined;
+        const toHex = toCell ? this.boardManager.getTile(toCell.q, toCell.r) : undefined;
 
         const canAnimateMove = Boolean(
             fromHex &&
             toHex &&
             mover &&
-            oldOwners.get(this.key(fromHex!.q, fromHex!.r)) === mover &&
-            this.neighbors(fromHex!).some(n => n.q === toHex!.q && n.r === toHex!.r)
+            oldOwners.get(this.boardManager.key(fromHex!.q, fromHex!.r)) === mover &&
+            this.boardManager.getNeighbors(fromHex!).some(n => n.q === toHex!.q && n.r === toHex!.r)
         );
 
         if (!canAnimateMove || !fromHex || !toHex || !mover) {
@@ -686,42 +522,38 @@ export class HexConquestScene extends Phaser.Scene {
         this.onlineAnimating = true;
 
         const convertedHexes: Hex[] = [];
-        const toKey = this.key(toHex.q, toHex.r);
-        const fromKey = this.key(fromHex.q, fromHex.r);
+        const toKey = this.boardManager.key(toHex.q, toHex.r);
+        const fromKey = this.boardManager.key(fromHex.q, fromHex.r);
 
         for (const cell of state.cells) {
-            const k = this.key(cell.q, cell.r);
+            const k = this.boardManager.key(cell.q, cell.r);
             if (k === fromKey || k === toKey) continue;
 
-            const h = this.hexes.get(k);
+            const h = this.boardManager.getTile(cell.q, cell.r);
             if (!h || h.owner === cell.owner) continue;
 
-            h.owner = cell.owner;
-            h.piece?.destroy();
-            h.piece = undefined;
-            h.poly?.setFillStyle(h.owner === 'blue' ? COLORS.blue : h.owner === 'red' ? COLORS.red : COLORS.empty, 1);
-            if (h.owner) this.createPiece(h);
-
             const previous = oldOwners.get(k);
+            if (cell.owner) {
+                this.combatManager.captureTile(h, cell.owner);
+            } else {
+                this.combatManager.destroyUnit(h);
+            }
+
             if (previous && previous !== mover && h.owner === mover) {
                 convertedHexes.push(h);
             }
         }
 
-        const fromPos = this.hexToPixel(fromHex.q, fromHex.r);
-        const toPos = this.hexToPixel(toHex.q, toHex.r);
+        const fromPos = this.boardManager.hexToPixel(fromHex.q, fromHex.r);
+        const toPos = this.boardManager.hexToPixel(toHex.q, toHex.r);
         const pieceOffsetX = -25;
         const pieceOffsetY = -30;
         const texture = mover === 'blue' ? BLUE_SOLDIER_KEY : RED_SOLDIER_KEY;
 
-        fromHex.owner = null;
-        fromHex.piece?.destroy();
-        fromHex.piece = undefined;
-        fromHex.poly?.setFillStyle(COLORS.empty, 1);
+        this.combatManager.destroyUnit(fromHex);
 
+        this.unitManager.removeUnit(toHex);
         toHex.owner = mover;
-        toHex.piece?.destroy();
-        toHex.piece = undefined;
         toHex.poly?.setFillStyle(mover === 'blue' ? COLORS.blue : COLORS.red, 1);
 
         const movingPiece = this.add.image(
@@ -745,9 +577,7 @@ export class HexConquestScene extends Phaser.Scene {
             ease: 'Sine.easeInOut',
             onComplete: () => {
                 movingPiece.destroy();
-                toHex.piece?.destroy();
-                toHex.piece = undefined;
-                this.createPiece(toHex);
+                this.combatManager.captureTile(toHex, mover);
                 this.flashConversions(toHex, convertedHexes);
                 this.onlineAnimating = false;
             },
@@ -756,16 +586,14 @@ export class HexConquestScene extends Phaser.Scene {
 
     private applyOnlineCellsInstant(cells: OnlineRoomState['cells']) {
         for (const cell of cells) {
-            const h = this.hexes.get(this.key(cell.q, cell.r));
+            const h = this.boardManager.getTile(cell.q, cell.r);
             if (!h || h.owner === cell.owner) continue;
 
-            h.owner = cell.owner;
-            h.piece?.destroy();
-            h.piece = undefined;
-
-            const fill = h.owner === 'blue' ? COLORS.blue : h.owner === 'red' ? COLORS.red : COLORS.empty;
-            h.poly?.setFillStyle(fill, 1);
-            if (h.owner) this.createPiece(h);
+            if (cell.owner) {
+                this.combatManager.captureTile(h, cell.owner);
+            } else {
+                this.combatManager.destroyUnit(h);
+            }
         }
     }
 
@@ -777,9 +605,9 @@ export class HexConquestScene extends Phaser.Scene {
         if (state.updated_at) this.lastAppliedOnlineUpdate = state.updated_at;
 
         this.roomCode = state.room_code;
-        this.currentPlayer = state.current_player;
-        this.turn = state.turn;
-        this.gameOver = state.game_over;
+        this.turnManager.setCurrentPlayer(state.current_player);
+        this.turnManager.setTurn(state.turn);
+        this.turnManager.setGameOverState(state.game_over);
 
         if (state.player_id) this.playerId = state.player_id;
         if (state.player_color) this.playerColor = state.player_color;
@@ -797,9 +625,9 @@ export class HexConquestScene extends Phaser.Scene {
 
         this.clearHighlights();
 
-        if (this.mode === 'online' && this.currentPlayer !== this.playerColor) {
+        if (this.mode === 'online' && this.turnManager.getCurrentPlayer() !== this.playerColor) {
             this.onlineInteracting = false;
-            this.selected = null;
+            this.unitManager.selectUnit(null);
         }
 
         if (!state.red_joined) {
@@ -826,14 +654,7 @@ export class HexConquestScene extends Phaser.Scene {
     }
 
     private saveAiResultIfNeeded(winner: Player) {
-        if (this.mode !== 'ai' || this.aiResultSaved) return;
-        this.aiResultSaved = true;
-        saveAiSettings(this.aiDifficulty, this.aiPersonality);
-        saveAiMatchResult(winner === 'blue', this.turn, this.aiDifficulty, this.aiPersonality);
-    }
-
-    private countAdjacentEnemies(hex: Hex, player: Player): number {
-        return this.neighbors(hex).filter(n => n.owner && n.owner !== player).length;
+        this.aiManager.saveResultIfNeeded(this.mode, winner, this.turnManager.getTurn());
     }
 
     private checkVictory(): boolean {
@@ -851,67 +672,48 @@ export class HexConquestScene extends Phaser.Scene {
             }
         }
 
-        const counts = this.getCounts();
-        if (counts.blue === 0 || counts.red === 0) {
-            this.gameOver = true;
-            if (!this.victorySoundPlayed) {
-                playSound(this, SOUND_KEYS.victory, 0.65);
-                this.victorySoundPlayed = true;
-            }
-
-            const winner: Player = counts.blue > 0 ? 'blue' : 'red';
-            this.saveAiResultIfNeeded(winner);
-            this.statusText.setText(`${winner.toUpperCase()} WINS!`);
-            this.statusText.setColor(winner === 'blue' ? '#7cc3ff' : '#ff8f8f');
-
-            if (this.mode === 'ai') {
-                const rematch = this.createWideButton(WIDTH / 2, 585, 'Rematch', () => {
-                    this.scene.start('HexConquestScene', {
-                        mode: 'ai',
-                        campaignLevel: 1,
-                        aiDifficulty: this.aiDifficulty,
-                        aiPersonality: this.aiPersonality,
-                    });
-                });
-                const setup = this.createWideButton(WIDTH / 2, 650, 'Change AI Setup', () => this.scene.start('AiSetupScene'));
-                const menu = this.createWideButton(WIDTH / 2, 715, 'Main Menu', () => this.scene.start('MenuScene'));
-                this.endButtons.push(rematch, setup, menu);
-                return true;
-            }
-
-            if (this.mode === 'campaign' && winner === 'blue') {
-                this.saveCampaignWinResults();
-            }
-
-            this.countText.setText(`Final Score  Blue ${counts.blue}  |  Red ${counts.red}`);
-            this.clearHighlights();
-            this.showEndButtons(winner);
-            return true;
-        }
-
-        const movable = [...this.hexes.values()].some(h => h.owner === this.currentPlayer && this.neighbors(h).some(n => !n.owner));
-        if (!movable) {
-            this.gameOver = true;
-            if (!this.victorySoundPlayed) {
-                playSound(this, SOUND_KEYS.victory, 0.65);
-                this.victorySoundPlayed = true;
-            }
-
-            const winner: Player = counts.blue >= counts.red ? 'blue' : 'red';
-            this.saveAiResultIfNeeded(winner);
-            this.statusText.setText(`NO MOVES — ${winner.toUpperCase()} WINS!`);
-            this.statusText.setColor(winner === 'blue' ? '#7cc3ff' : '#ff8f8f');
-
-            if (this.mode === 'campaign' && winner === 'blue') {
-                this.saveCampaignWinResults();
-            }
-
-            this.countText.setText(`Blue ${counts.blue}  |  Red ${counts.red}`);
-            this.clearHighlights();
-            this.showEndButtons(winner);
+        const result = this.combatManager.checkVictory(this.turnManager.getCurrentPlayer());
+        if (result.gameOver && result.winner) {
+            this.handleCombatVictory(result.winner);
             return true;
         }
         return false;
+    }
+
+    private handleCombatVictory(winner: Player) {
+        this.turnManager.setGameOver()
+        if (!this.victorySoundPlayed) {
+            playSound(this, SOUND_KEYS.victory, 0.65);
+            this.victorySoundPlayed = true;
+        }
+
+        const counts = this.boardManager.getCounts();
+        this.saveAiResultIfNeeded(winner);
+        this.statusText.setText(`${winner.toUpperCase()} WINS!`);
+        this.statusText.setColor(winner === 'blue' ? '#7cc3ff' : '#ff8f8f');
+
+        if (this.mode === 'ai') {
+            const rematch = this.createWideButton(WIDTH / 2, 585, 'Rematch', () => {
+                this.scene.start('HexConquestScene', {
+                    mode: 'ai',
+                    campaignLevel: 1,
+                    aiDifficulty: this.aiManager.getDifficulty(),
+                    aiPersonality: this.aiManager.getPersonality(),
+                });
+            });
+            const setup = this.createWideButton(WIDTH / 2, 650, 'Change AI Setup', () => this.scene.start('AiSetupScene'));
+            const menu = this.createWideButton(WIDTH / 2, 715, 'Main Menu', () => this.scene.start('MenuScene'));
+            this.endButtons.push(rematch, setup, menu);
+            return;
+        }
+
+        if (this.mode === 'campaign' && winner === 'blue') {
+            this.saveCampaignWinResults();
+        }
+
+        this.countText.setText(`Final Score  Blue ${counts.blue}  |  Red ${counts.red}`);
+        this.clearHighlights();
+        this.showEndButtons(winner);
     }
 
     private getCampaignObjectiveProgressText(objective: CampaignObjective) {
@@ -920,7 +722,7 @@ export class HexConquestScene extends Phaser.Scene {
         }
 
         if (objective.type === 'win_within_turns') {
-            return `${objective.description} (${Math.max(0, (objective.target ?? 0) - this.turn + 1)} turns left)`;
+            return `${objective.description} (${Math.max(0, (objective.target ?? 0) - this.turnManager.getTurn() + 1)} turns left)`;
         }
 
         if (objective.type === 'control_territory') {
@@ -932,29 +734,29 @@ export class HexConquestScene extends Phaser.Scene {
         }
 
         if (objective.type === 'survive_turns') {
-            return `${objective.description} (${Math.min(this.turn, objective.target ?? this.turn)} / ${objective.target})`;
+            return `${objective.description} (${Math.min(this.turnManager.getTurn(), objective.target ?? this.turnManager.getTurn())} / ${objective.target})`;
         }
 
         return objective.description;
     }
 
     private updateCampaignObjectiveTracking() {
-        if (this.mode !== 'campaign' || this.lastObjectiveTurnTracked === this.turn) return;
+        if (this.mode !== 'campaign' || this.lastObjectiveTurnTracked === this.turnManager.getTurn()) return;
 
-        const center = this.hexes.get(this.key(0, 0));
+        const center = this.boardManager.getTile(0, 0);
         this.centerHoldTurns = center?.owner === 'blue' ? this.centerHoldTurns + 1 : 0;
-        this.lastObjectiveTurnTracked = this.turn;
+        this.lastObjectiveTurnTracked = this.turnManager.getTurn();
     }
 
     private getBlueTerritoryPercent() {
-        const counts = this.getCounts();
-        const total = [...this.hexes.values()].length || 1;
+        const counts = this.boardManager.getCounts();
+        const total = [...this.boardManager.getTiles()].length || 1;
         return Math.round((counts.blue / total) * 100);
     }
 
     private isCampaignObjectiveComplete() {
         const objective = getCampaignObjective(this.campaignLevel);
-        const counts = this.getCounts();
+        const counts = this.boardManager.getCounts();
 
         if (counts.red === 0 && counts.blue > 0) return true;
 
@@ -967,11 +769,11 @@ export class HexConquestScene extends Phaser.Scene {
         }
 
         if (objective.type === 'survive_turns') {
-            return this.turn >= (objective.target ?? 0) && counts.blue > 0;
+            return this.turnManager.getTurn() >= (objective.target ?? 0) && counts.blue > 0;
         }
 
         if (objective.type === 'win_within_turns') {
-            return counts.red === 0 && this.turn <= (objective.target ?? Number.MAX_SAFE_INTEGER);
+            return counts.red === 0 && this.turnManager.getTurn() <= (objective.target ?? Number.MAX_SAFE_INTEGER);
         }
 
         return false;
@@ -979,19 +781,19 @@ export class HexConquestScene extends Phaser.Scene {
 
     private hasCampaignObjectiveFailed() {
         const objective = getCampaignObjective(this.campaignLevel);
-        const counts = this.getCounts();
+        const counts = this.boardManager.getCounts();
 
         if (counts.blue === 0) return true;
 
         if (objective.type === 'win_within_turns') {
-            return this.turn > (objective.target ?? Number.MAX_SAFE_INTEGER) && counts.red > 0;
+            return this.turnManager.getTurn() > (objective.target ?? Number.MAX_SAFE_INTEGER) && counts.red > 0;
         }
 
         return false;
     }
 
     private finishCampaignGame(winner: Player, headline: string) {
-        this.gameOver = true;
+        this.turnManager.setGameOver()
         if (!this.victorySoundPlayed) {
             playSound(this, SOUND_KEYS.victory, 0.65);
             this.victorySoundPlayed = true;
@@ -1005,7 +807,7 @@ export class HexConquestScene extends Phaser.Scene {
         this.countText.setText(
             winner === 'blue'
                 ? `${objective.title} complete!  ${formatStars(stars)}`
-                : `${objective.description}\nBlue ${this.getCounts().blue} | Red ${this.getCounts().red}`
+                : `${objective.description}\nBlue ${this.boardManager.getCounts().blue} | Red ${this.boardManager.getCounts().red}`
         );
 
         this.clearHighlights();
@@ -1023,7 +825,7 @@ export class HexConquestScene extends Phaser.Scene {
     private calculateCampaignStars(objective: CampaignObjective) {
         let stars = 1;
 
-        if (objective.starTurnLimit && this.turn <= objective.starTurnLimit) {
+        if (objective.starTurnLimit && this.turnManager.getTurn() <= objective.starTurnLimit) {
             stars++;
         }
 
@@ -1092,52 +894,42 @@ export class HexConquestScene extends Phaser.Scene {
     }
 
     private updateHud() {
-        const counts = this.getCounts();
+        const counts = this.boardManager.getCounts();
 
-        if (this.aiThinking) {
+        if (this.aiManager.isThinking()) {
             this.statusText.setText('RED IS THINKING...');
             this.statusText.setColor('#ff8f8f');
-            this.countText.setText(`Turn ${this.turn}    Blue ${counts.blue}  |  Red ${counts.red}`);
+            this.countText.setText(`Turn ${this.turnManager.getTurn()}    Blue ${counts.blue}  |  Red ${counts.red}`);
             return;
         }
 
         if (this.mode === 'online') {
-            const turnText = this.currentPlayer === this.playerColor ? 'YOUR TURN' : `${this.currentPlayer.toUpperCase()}'S TURN`;
+            const turnText = this.turnManager.getCurrentPlayer() === this.playerColor ? 'YOUR TURN' : `${this.turnManager.getCurrentPlayer().toUpperCase()}'S TURN`;
             const colorText = this.playerColor ? `You are ${this.playerColor.toUpperCase()}` : 'Online PvP';
             this.statusText.setText(turnText);
-            this.statusText.setColor(this.currentPlayer === 'blue' ? '#7cc3ff' : '#ff8f8f');
-            this.countText.setText(`Room ${this.roomCode}  ${colorText}\nTurn ${this.turn}  Blue ${counts.blue} | Red ${counts.red}`);
+            this.statusText.setColor(this.turnManager.getCurrentPlayer() === 'blue' ? '#7cc3ff' : '#ff8f8f');
+            this.countText.setText(`Room ${this.roomCode}  ${colorText}\nTurn ${this.turnManager.getTurn()}  Blue ${counts.blue} | Red ${counts.red}`);
             return;
         }
 
-        this.statusText.setText(`${this.currentPlayer.toUpperCase()}'S TURN`);
-        this.statusText.setColor(this.currentPlayer === 'blue' ? '#7cc3ff' : '#ff8f8f');
+        this.statusText.setText(`${this.turnManager.getCurrentPlayer().toUpperCase()}'S TURN`);
+        this.statusText.setColor(this.turnManager.getCurrentPlayer() === 'blue' ? '#7cc3ff' : '#ff8f8f');
 
         if (this.mode === 'ai') {
             const stats = getAiStats();
             this.countText.setText(
-                `${formatAiDifficulty(this.aiDifficulty)} ${formatAiPersonality(this.aiPersonality)} AI\nTurn ${this.turn}  Blue ${counts.blue} | Red ${counts.red}  Record ${stats.wins}W-${stats.losses}L`
+                `${formatAiDifficulty(this.aiManager.getDifficulty())} ${formatAiPersonality(this.aiManager.getPersonality())} AI\nTurn ${this.turnManager.getTurn()}  Blue ${counts.blue} | Red ${counts.red}  Record ${stats.wins}W-${stats.losses}L`
             );
             return;
         }
 
         if (this.mode === 'campaign') {
             const objective = getCampaignObjective(this.campaignLevel);
-            this.countText.setText(`Objective: ${this.getCampaignObjectiveProgressText(objective)}\nTurn ${this.turn}  Blue ${counts.blue} | Red ${counts.red}`);
+            this.countText.setText(`Objective: ${this.getCampaignObjectiveProgressText(objective)}\nTurn ${this.turnManager.getTurn()}  Blue ${counts.blue} | Red ${counts.red}`);
             return;
         }
 
-        this.countText.setText(`Turn ${this.turn}    Blue ${counts.blue}  |  Red ${counts.red}`);
-    }
-
-    private getCounts() {
-        let blue = 0;
-        let red = 0;
-        for (const h of this.hexes.values()) {
-            if (h.owner === 'blue') blue++;
-            if (h.owner === 'red') red++;
-        }
-        return { blue, red };
+        this.countText.setText(`Turn ${this.turnManager.getTurn()}    Blue ${counts.blue}  |  Red ${counts.red}`);
     }
 
     private clearHighlights() {
@@ -1149,7 +941,7 @@ export class HexConquestScene extends Phaser.Scene {
 
         this.validMoves.clear();
 
-        for (const h of this.hexes.values()) {
+        for (const h of this.boardManager.getTiles()) {
             const fill = h.owner === 'blue' ? COLORS.blue : h.owner === 'red' ? COLORS.red : COLORS.empty;
             h.poly?.setFillStyle(fill, 1);
             h.poly?.setStrokeStyle(2, COLORS.emptyStroke, 1);
@@ -1176,8 +968,8 @@ export class HexConquestScene extends Phaser.Scene {
         this.scene.restart({
             mode: this.mode,
             campaignLevel: this.campaignLevel,
-            aiDifficulty: this.aiDifficulty,
-            aiPersonality: this.aiPersonality,
+            aiDifficulty: this.aiManager.getDifficulty(),
+            aiPersonality: this.aiManager.getPersonality(),
         });
     }
 
@@ -1187,32 +979,4 @@ export class HexConquestScene extends Phaser.Scene {
         this.scene.start('MenuScene');
     }
 
-    private key(q: number, r: number) {
-        return `${q},${r}`;
-    }
-
-    private hexToPixel(q: number, r: number) {
-        const x = this.boardCenterX + HEX_SIZE * SQRT3 * (q + r / 2);
-        const y = this.boardCenterY + HEX_SIZE * 1.5 * r;
-        return { x, y };
-    }
-
-    private getHexPoints(size: number) {
-        const pts: Phaser.Types.Math.Vector2Like[] = [];
-        for (let i = 0; i < 6; i++) {
-            const angle = Phaser.Math.DegToRad(60 * i - 30);
-            pts.push({ x: size * Math.cos(angle), y: size * Math.sin(angle) });
-        }
-        return pts;
-    }
-
-    private neighbors(hex: Hex): Hex[] {
-        const dirs = [
-            [1, 0], [1, -1], [0, -1],
-            [-1, 0], [-1, 1], [0, 1],
-        ];
-        return dirs
-            .map(([dq, dr]) => this.hexes.get(this.key(hex.q + dq, hex.r + dr)))
-            .filter((h): h is Hex => Boolean(h));
-    }
 }
