@@ -140,7 +140,7 @@ Launch Game → World Map → Choose Mission → Battle → Victory → Gold →
 ## Milestone 4 — Equipment Management
 
 - **`src/data/weapons.ts`** — 4 weapons with `conversionBonus`, `durability`, `requiredLevel`, `cost`
-- **`src/data/skills.ts`** — 5 skills: Kick (200g/lv2), Blink (400g/lv4), Freeze (300g/lv3, upgradeable to lv3), Teleport (500g/lv5), Hex (600g/lv6)
+- **`src/data/skills.ts`** — 5 skills sorted weakest→strongest: Hex (150g/lv1, upgradeable lv1→3), Freeze (250g/lv2, upgradeable lv2→4), Kick (350g/lv4), Blink (500g/lv5), Teleport (650g/lv6)
 - **`src/state/Inventory.ts`** — persistent owned weapon/skill IDs + `skillUpgrades` map for upgradeable skills
 - **`src/state/Loadout.ts`** — persistent equipped weapon (1 slot) + skills (2 slots)
 - **`WeaponManager.ts`** — static: `buy`, `equip`, `canBuy`, `getConversionBonus`, `isOwned`
@@ -173,21 +173,29 @@ Launch Game → World Map → Choose Mission → Battle → Victory → Gold →
 ## Skill Properties
 
 ```ts
-// Basic skills
+// Basic skills (no upgrade)
 {
   id: "skill_kick",
   name: "Kick",
   description: "Kick opponent to nearest empty tile, then move in.",
-  cost: 200, requiredLevel: 2, type: "kick",
+  cost: 350, requiredLevel: 4, type: "kick",
 }
 
-// Upgradeable skills (maxLevel + upgradeCost)
+// Upgradeable skills (maxLevel + upgradeCost + upgradeLevelReq)
+// getRequiredLevelForLevel(def, level) = def.requiredLevel + (level-1) * def.upgradeLevelReq
+{
+  id: "skill_hex",
+  name: "Hex",
+  description: "Mark a vacant tile — only you can ever occupy it.",
+  cost: 150, requiredLevel: 1, type: "hex",
+  maxLevel: 3, upgradeCost: 150, upgradeLevelReq: 1,
+}
 {
   id: "skill_freeze",
   name: "Freeze",
   description: "Freeze opponent piece(s) so they cannot be moved.",
-  cost: 300, requiredLevel: 3, type: "freeze",
-  maxLevel: 3, upgradeCost: 200,
+  cost: 250, requiredLevel: 2, type: "freeze",
+  maxLevel: 3, upgradeCost: 150, upgradeLevelReq: 1,
 }
 ```
 
@@ -213,13 +221,13 @@ When it's blue's turn:
 
 # Skill Details
 
-| Skill     | Type      | Phases | Effect |
-|-----------|-----------|--------|--------|
-| Kick      | Two-phase | Select red piece → BFS nearest empty → Select blue piece to move in | Opponent displaced, convert from new position |
-| Blink     | Two-phase | Select blue piece → Select adjacent red piece | Swap positions, convert from new position |
-| Freeze    | One-phase | Select red piece adjacent to blue | Freeze 1/3/5 pieces (by level). Frozen pieces can't move. Unfrozen if converted. |
-| Teleport  | Two-phase | Select blue piece → Select any red piece on board | Swap positions anywhere, convert from new position |
-| Hex       | One-phase | Select vacant tile | Claim tile permanently — only blue can ever occupy it. Visual: cyan stroke. |
+| Skill     | Type      | Phases | Effect | Upgrade |
+|-----------|-----------|--------|--------|---------|
+| Hex       | One-phase | Select vacant tile | Claim 1/3/5 vacant tiles. Tile is hexed — only blue can ever occupy it. | Lv1: 1 tile (150g) Lv2: 3 tiles (+150g) Lv3: 5 tiles (+150g). Req lv +1 per upgrade. |
+| Freeze    | One-phase | Select red piece adjacent to blue | Freeze 1/3/5 opponent pieces. Frozen can't move. Unfrozen if converted. | Lv1: 1 piece (250g) Lv2: 3 pieces (+150g) Lv3: 5 pieces (+150g). Req lv +1 per upgrade. |
+| Kick      | Two-phase | Select red piece → BFS nearest empty → Select blue piece to move in | Opponent displaced, convert from new position | — |
+| Blink     | Two-phase | Select blue piece → Select adjacent red piece | Swap positions, convert from new position | — |
+| Teleport  | Two-phase | Select blue piece → Select any red piece on board | Swap positions anywhere, convert from new position | — |
 
 ## Hex (tile property)
 - `hex.hexed: Player | null` — set to `'blue'` by Hex skill
@@ -231,6 +239,12 @@ When it's blue's turn:
 - Frozen pieces cannot be selected/moved by their owner
 - `CombatManager.captureTile()` clears `frozen`
 - `AIManager` skips frozen pieces in move generation
+
+## Upgrade System
+- Upgradeable skills have `maxLevel`, `upgradeCost`, and `upgradeLevelReq` fields
+- `getRequiredLevelForLevel(def, level)` computes player level requirement for a given skill level
+- Formula: `def.requiredLevel + (level - 1) * def.upgradeLevelReq`
+- Skill level stored in `Inventory.skillUpgrades` map (defaults to 1)
 
 ---
 

@@ -748,8 +748,51 @@ export class HexConquestScene extends Phaser.Scene {
 
     private executeHex(hex: Hex) {
         this.clearHighlights();
+
+        const hexLevel = (() => {
+            for (const sk of SkillManager.getEquipped()) {
+                if (sk.type === 'hex') return getSkillLevel(sk.id);
+            }
+            return 1;
+        })();
+
+        const hexed: Hex[] = [hex];
         hex.hexed = 'blue';
         this.combatManager.captureTile(hex, 'blue');
+
+        if (hexLevel >= 2) {
+            const adjacent = this.boardManager.getNeighbors(hex).filter(n => !n.owner && !n.hexed);
+            const count = Math.min(2, adjacent.length);
+            for (let i = 0; i < count; i++) {
+                adjacent[i].hexed = 'blue';
+                this.combatManager.captureTile(adjacent[i], 'blue');
+                hexed.push(adjacent[i]);
+            }
+        }
+
+        if (hexLevel >= 3) {
+            const more: Hex[] = [];
+            for (const h of hexed) {
+                for (const n of this.boardManager.getNeighbors(h)) {
+                    if (!n.owner && !n.hexed && !hexed.includes(n) && !more.includes(n)) {
+                        more.push(n);
+                    }
+                }
+            }
+            const count = Math.min(5 - hexed.length, more.length);
+            for (let i = 0; i < count; i++) {
+                more[i].hexed = 'blue';
+                this.combatManager.captureTile(more[i], 'blue');
+                hexed.push(more[i]);
+            }
+        }
+
+        for (const h of hexed) {
+            h.poly?.setStrokeStyle(3, 0x88ff88, 1);
+        }
+
+        this.statusText.setText(`HEX — ${hexed.length} tile(s) claimed!`);
+        this.statusText.setColor(Theme.status.info);
 
         if (this.pendingSkillId) this.usedSkills.add(this.pendingSkillId);
         this.exitSkillMode();

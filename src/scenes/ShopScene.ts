@@ -5,7 +5,7 @@ import { getGold, getLevel } from '../state/PlayerProfile';
 import { isWeaponOwned, isSkillOwned, getSkillLevel } from '../state/Inventory';
 import { getEquippedWeapon } from '../state/Loadout';
 import { WEAPONS, getWeaponById, WeaponDefinition } from '../data/weapons';
-import { SKILLS, getSkillById, SkillDefinition } from '../data/skills';
+import { SKILLS, getSkillById, getRequiredLevelForLevel, SkillDefinition } from '../data/skills';
 import { WeaponManager } from '../managers/WeaponManager';
 import { SkillManager } from '../managers/SkillManager';
 
@@ -125,7 +125,17 @@ export class ShopScene extends Phaser.Scene {
     c.add(detailText);
 
     if (levelReq > 0) {
-      const reqText = this.add.text(PANEL_X + 14, y + 68, `Requires Level ${levelReq}`, {
+      const sk = item as SkillDefinition;
+      let reqLabel = `Requires Level ${levelReq}`;
+      if (!isWeapon && sk.maxLevel && sk.upgradeLevelReq) {
+        const lvl = owned ? getSkillLevel(sk.id) : 1;
+        const nextReq = getRequiredLevelForLevel(sk, lvl + (owned && lvl < sk.maxLevel ? 1 : 0));
+        reqLabel = `Requires Level ${nextReq}`;
+        if (sk.upgradeLevelReq > 0 && sk.maxLevel > 1) {
+          reqLabel += ` (base ${levelReq}, +${sk.upgradeLevelReq}/upgrade)`;
+        }
+      }
+      const reqText = this.add.text(PANEL_X + 14, y + 68, reqLabel, {
         fontSize: '10px', color: locked ? Theme.status.warning : Theme.ui.textDescription,
         stroke: '#000000', strokeThickness: 1,
       });

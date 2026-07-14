@@ -1,7 +1,7 @@
 import { getLevel } from '../state/PlayerProfile';
 import { getEquippedSkills, equipSkill, unequipSkill, isSkillEquipped } from '../state/Loadout';
 import { isSkillOwned, ownSkill, getSkillLevel, setUpgradeLevel } from '../state/Inventory';
-import { getSkillById, SkillDefinition } from '../data/skills';
+import { getSkillById, getRequiredLevelForLevel, SkillDefinition } from '../data/skills';
 import { EconomyManager } from './EconomyManager';
 
 export class SkillManager {
@@ -25,19 +25,22 @@ export class SkillManager {
   static canBuy(id: string): { allowed: boolean; reason?: string } {
     const def = getSkillById(id);
     if (!def) return { allowed: false, reason: 'Unknown skill.' };
-    if (getLevel() < def.requiredLevel) return { allowed: false, reason: `Requires level ${def.requiredLevel}.` };
 
     const owned = isSkillOwned(id);
     if (owned) {
       if (def.maxLevel && def.upgradeCost) {
         const currentLevel = getSkillLevel(id);
         if (currentLevel >= def.maxLevel) return { allowed: false, reason: 'Already at max level.' };
+        const nextLevel = currentLevel + 1;
+        const levelReq = getRequiredLevelForLevel(def, nextLevel);
+        if (getLevel() < levelReq) return { allowed: false, reason: `Requires level ${levelReq}.` };
         if (!EconomyManager.canAfford(def.upgradeCost)) return { allowed: false, reason: 'Not enough gold.' };
         return { allowed: true, reason: 'upgrade' };
       }
       return { allowed: false, reason: 'Already owned.' };
     }
 
+    if (getLevel() < def.requiredLevel) return { allowed: false, reason: `Requires level ${def.requiredLevel}.` };
     if (!EconomyManager.canAfford(def.cost)) return { allowed: false, reason: 'Not enough gold.' };
     return { allowed: true };
   }
