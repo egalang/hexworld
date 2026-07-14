@@ -1,3 +1,4 @@
+import Phaser from 'phaser';
 import { unlockAudio } from '../shared';
 
 export class MusicManager {

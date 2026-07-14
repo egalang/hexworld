@@ -1,3 +1,4 @@
+import Phaser from 'phaser';
 import { unlockAudio, playSound, SOUND_KEYS, COLORS, WIDTH, HEIGHT } from '../shared';
 import { MusicManager } from './MusicManager';
 

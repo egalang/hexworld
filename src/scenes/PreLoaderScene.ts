@@ -1,3 +1,4 @@
+import Phaser from 'phaser';
 import { 
     preloadSoundEffects, 
     BLUE_SOLDIER_KEY,
