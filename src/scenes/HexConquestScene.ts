@@ -881,7 +881,7 @@ export class HexConquestScene extends Phaser.Scene {
                 const setup = this.createWideButton(WIDTH / 2, 650, 'Change AI Setup', () => this.scene.start('AiSetupScene'));
                 const menu = this.createWideButton(WIDTH / 2, 715, 'Main Menu', () => this.scene.start('MenuScene'));
                 this.endButtons.push(rematch, setup, menu);
-                return;
+                return true;
             }
 
             if (this.mode === 'campaign' && winner === 'blue') {

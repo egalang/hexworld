@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import blueSoldierUrl from '/assets/blue_01.png';
 import redSoldierUrl from '/assets/red_01.png';
-import { HexConquestScene, config } from './scenes/HexConquestScene';
+import { HexConquestScene } from './scenes/HexConquestScene';
 
 export type Player = 'blue' | 'red';
 export type Owner = Player | null;
