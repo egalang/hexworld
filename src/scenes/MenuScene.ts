@@ -34,19 +34,23 @@ export class MenuScene extends Phaser.Scene {
       strokeThickness: 4,
     }).setOrigin(0.5);
 
-    this.createMenuButton(225, 'Campaign', 'Complete levels with increasing difficulty', () => {
+    this.createMenuButton(225, 'World Map', 'Explore destinations and launch missions', () => {
+      this.scene.start('WorldMapScene');
+    });
+
+    this.createMenuButton(315, 'Campaign', 'Complete levels with increasing difficulty', () => {
       this.scene.start('CampaignLevelSelectScene');
     });
 
-    this.createMenuButton(315, 'Play Against AI', 'Choose difficulty and AI personality', () => {
+    this.createMenuButton(405, 'Play Against AI', 'Choose difficulty and AI personality', () => {
       this.scene.start('AiSetupScene');
     });
 
-    this.createMenuButton(405, 'Local 2 Player', 'Blue and Red take turns on one device', () => {
+    this.createMenuButton(495, 'Local 2 Player', 'Blue and Red take turns on one device', () => {
       this.scene.start('HexConquestScene', { mode: 'local', campaignLevel: 1 });
     });
 
-    this.createMenuButton(495, 'Play Against Online Player', 'Create or join a private room code', () => {
+    this.createMenuButton(585, 'Play Against Online Player', 'Create or join a private room code', () => {
       this.scene.start('OnlineLobbyScene');
     });
 

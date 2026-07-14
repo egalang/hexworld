@@ -6,6 +6,8 @@ import {
 } from '../shared';
 import blueSoldierUrl from '/assets/blue_01.png';
 import redSoldierUrl from '/assets/red_01.png';
+import worldmapBgUrl from '/assets/worldmap_bg.png';
+import worldmapTitleUrl from '/assets/worldmap_title.png';
 
 export class PreloaderScene extends Phaser.Scene {
   private progressBar!: Phaser.GameObjects.Graphics;
@@ -129,15 +131,17 @@ export class PreloaderScene extends Phaser.Scene {
       this.load.image(RED_SOLDIER_KEY, redSoldierUrl);
     }
 
-    // Future assets...
-    // this.load.image(...)
-    // this.load.audio(...)
-    // this.load.atlas(...)
-    // this.load.spritesheet(...)
+    if (!this.textures.exists('worldmap_bg')) {
+      this.load.image('worldmap_bg', worldmapBgUrl);
+    }
+
+    if (!this.textures.exists('worldmap_title')) {
+      this.load.image('worldmap_title', worldmapTitleUrl);
+    }
   }
 
   create() {
-    this.scene.start("MenuScene");
+    this.scene.start("WorldMapScene");
   }
 }
 
