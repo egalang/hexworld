@@ -8,6 +8,16 @@ import blueSoldierUrl from '/assets/blue_01.png';
 import redSoldierUrl from '/assets/red_01.png';
 import worldmapBgUrl from '/assets/worldmap_bg.png';
 import worldmapTitleUrl from '/assets/worldmap_title.png';
+import missionUrl from '/assets/mission.png';
+import weaponShopUrl from '/assets/weapon_shop.png';
+import profileUrl from '/assets/profile.png';
+import inventoryUrl from '/assets/inventory.png';
+import settingsUrl from '/assets/settings.png';
+import barracksUrl from '/assets/barracks.png';
+import arenaUrl from '/assets/arena.png';
+import skillShopUrl from '/assets/skill_shop.png';
+import arenaBgUrl from '/assets/arena_bg.png';
+import battleBgUrl from '/assets/battle_bg.png';
 
 export class PreloaderScene extends Phaser.Scene {
   private progressBar!: Phaser.GameObjects.Graphics;
@@ -30,32 +40,16 @@ export class PreloaderScene extends Phaser.Scene {
     //
     // Logo
     //
-    const logo = this.add.image(0, -170, "game-logo")
+    const logo = this.add.image(0, -40, "game-logo")
       .setOrigin(0.5)
       .setScale(0.35);
-
-    //
-    // Title
-    //
-    const title = this.add.text(
-      0,
-      10,
-      "HEX CONQUEST",
-      {
-        fontSize: "42px",
-        fontStyle: "bold",
-        color: "#ffffff",
-        stroke: "#000000",
-        strokeThickness: 8,
-      }
-    ).setOrigin(0.5);
 
     //
     // Loading text
     //
     const loadingText = this.add.text(
       0,
-      70,
+      20,
       "Loading... 0%",
       {
         fontSize: "20px",
@@ -71,7 +65,7 @@ export class PreloaderScene extends Phaser.Scene {
     box.fillStyle(0xffffff, 0.20);
     box.fillRoundedRect(
       -170,
-      120,
+      55,
       340,
       22,
       11
@@ -87,7 +81,6 @@ export class PreloaderScene extends Phaser.Scene {
     //
     ui.add([
       logo,
-      title,
       loadingText,
       box,
       this.progressBar,
@@ -104,7 +97,7 @@ export class PreloaderScene extends Phaser.Scene {
 
       this.progressBar.fillRoundedRect(
         -165,
-        125,
+        60,
         330 * value,
         12,
         6
@@ -137,6 +130,46 @@ export class PreloaderScene extends Phaser.Scene {
 
     if (!this.textures.exists('worldmap_title')) {
       this.load.image('worldmap_title', worldmapTitleUrl);
+    }
+
+    if (!this.textures.exists('tile_mission')) {
+      this.load.image('tile_mission', missionUrl);
+    }
+
+    if (!this.textures.exists('tile_weapon_shop')) {
+      this.load.image('tile_weapon_shop', weaponShopUrl);
+    }
+
+    if (!this.textures.exists('tile_profile')) {
+      this.load.image('tile_profile', profileUrl);
+    }
+
+    if (!this.textures.exists('tile_inventory')) {
+      this.load.image('tile_inventory', inventoryUrl);
+    }
+
+    if (!this.textures.exists('tile_settings')) {
+      this.load.image('tile_settings', settingsUrl);
+    }
+
+    if (!this.textures.exists('tile_training')) {
+      this.load.image('tile_training', barracksUrl);
+    }
+
+    if (!this.textures.exists('tile_pvp')) {
+      this.load.image('tile_pvp', arenaUrl);
+    }
+
+    if (!this.textures.exists('tile_skill_shop')) {
+      this.load.image('tile_skill_shop', skillShopUrl);
+    }
+
+    if (!this.textures.exists('arena_bg')) {
+      this.load.image('arena_bg', arenaBgUrl);
+    }
+
+    if (!this.textures.exists('battle_bg')) {
+      this.load.image('battle_bg', battleBgUrl);
     }
   }
 

@@ -11,7 +11,6 @@ import { SkillManager } from '../managers/SkillManager';
 
 const PANEL_X = 16;
 const PANEL_W = WIDTH - 32;
-const ROW_H = 100;
 const BTN_X = PANEL_X + PANEL_W - 14 - 50;
 
 type ShopCategory = 'weapons' | 'skills';
@@ -29,10 +28,7 @@ export class ShopScene extends Phaser.Scene {
   }
 
   create() {
-    const bgColor = Phaser.Display.Color.HexStringToColor(Theme.ui.background).color;
-    const g = this.add.graphics();
-    g.fillStyle(bgColor, 1);
-    g.fillRect(0, 0, WIDTH, HEIGHT);
+    this.add.image(WIDTH / 2, HEIGHT / 2, 'arena_bg').setDisplaySize(WIDTH, HEIGHT);
 
     this.add.text(WIDTH / 2, 50, this.category === 'weapons' ? 'WEAPON SHOP' : 'SKILL SHOP', {
       fontSize: '28px', fontStyle: 'bold', color: Theme.ui.textTitle,
@@ -59,15 +55,14 @@ export class ShopScene extends Phaser.Scene {
       return;
     }
 
-    const startY = 130;
     const scrollContent = this.add.container(0, 0);
-    const maxVisible = Math.floor((HEIGHT - startY - 80) / ROW_H);
+    let currentY = 130;
 
-    for (let i = 0; i < items.length; i++) {
-      if (i >= maxVisible) break;
-      const item = items[i];
-      const y = startY + i * ROW_H;
-      scrollContent.add(this.createItemRow(item, y));
+    for (const item of items) {
+      const row = this.createItemRow(item, currentY);
+      scrollContent.add(row);
+      const rowHeight = (row as any).height ?? 100;
+      currentY += rowHeight + 8;
     }
   }
 
@@ -82,30 +77,22 @@ export class ShopScene extends Phaser.Scene {
     const canAfford = getGold() >= item.cost;
     const buyable = !owned && !locked && canAfford;
 
-    const panelColor = Phaser.Display.Color.HexStringToColor(Theme.ui.panel).color;
-    const borderColor = Phaser.Display.Color.HexStringToColor(
-      owned ? Theme.reward.weapon : locked ? Theme.button.disabled.bg : Theme.ui.border
-    ).color;
-
-    const bg = this.add.graphics();
-    bg.fillStyle(panelColor, 0.9);
-    bg.lineStyle(2, borderColor, owned ? 1 : locked ? 0.3 : 0.6);
-    bg.fillRoundedRect(PANEL_X, y, PANEL_W, ROW_H - 4, 10);
-    bg.strokeRoundedRect(PANEL_X, y, PANEL_W, ROW_H - 4, 10);
-    c.add(bg);
+    let cursorY = y + 8;
 
     const nameColor = owned ? Theme.reward.weapon : locked ? Theme.button.disabled.text : Theme.ui.text;
-    const nameText = this.add.text(PANEL_X + 14, y + 8, item.name, {
+    const nameText = this.add.text(PANEL_X + 14, cursorY, item.name, {
       fontSize: '16px', fontStyle: 'bold', color: nameColor,
       stroke: '#000000', strokeThickness: 2,
     });
     c.add(nameText);
+    cursorY += nameText.height + 6;
 
-    const descText = this.add.text(PANEL_X + 14, y + 30, item.description, {
+    const descText = this.add.text(PANEL_X + 14, cursorY, item.description, {
       fontSize: '12px', color: Theme.ui.textDescription,
       stroke: '#000000', strokeThickness: 1, wordWrap: { width: PANEL_W - 120 },
     });
     c.add(descText);
+    cursorY += descText.height + 6;
 
       const sk = item as SkillDefinition;
       let detail = `Cost: ${item.cost} Gold`;
@@ -118,11 +105,12 @@ export class ShopScene extends Phaser.Scene {
       } else {
         detail += `  Once per battle`;
       }
-    const detailText = this.add.text(PANEL_X + 14, y + 50, detail, {
+    const detailText = this.add.text(PANEL_X + 14, cursorY, detail, {
       fontSize: '11px', color: Theme.ui.textSecondary,
       stroke: '#000000', strokeThickness: 1,
     });
     c.add(detailText);
+    cursorY += detailText.height + 4;
 
     if (levelReq > 0) {
       const sk = item as SkillDefinition;
@@ -135,18 +123,32 @@ export class ShopScene extends Phaser.Scene {
           reqLabel += ` (base ${levelReq}, +${sk.upgradeLevelReq}/upgrade)`;
         }
       }
-      const reqText = this.add.text(PANEL_X + 14, y + 68, reqLabel, {
+      const reqText = this.add.text(PANEL_X + 14, cursorY, reqLabel, {
         fontSize: '10px', color: locked ? Theme.status.warning : Theme.ui.textDescription,
         stroke: '#000000', strokeThickness: 1,
       });
       c.add(reqText);
     }
 
+    const rowHeight = cursorY - y + 20;
+
+    const panelColor = Phaser.Display.Color.HexStringToColor(Theme.ui.panel).color;
+    const borderColor = Phaser.Display.Color.HexStringToColor(
+      owned ? Theme.reward.weapon : locked ? Theme.button.disabled.bg : Theme.ui.border
+    ).color;
+
+    const bg = this.add.graphics();
+    bg.fillStyle(panelColor, 0.9);
+    bg.lineStyle(2, borderColor, owned ? 1 : locked ? 0.3 : 0.6);
+    bg.fillRoundedRect(PANEL_X, y, PANEL_W, rowHeight, 10);
+    bg.strokeRoundedRect(PANEL_X, y, PANEL_W, rowHeight, 10);
+    c.addAt(bg, 0);
+
     if (owned) {
       if (isWeapon) {
         const isEq = getEquippedWeapon() === item.id;
         const btnText = isEq ? 'Equipped' : 'Equip';
-        const btn = this.makeButton(BTN_X, y + ROW_H / 2 - 2, btnText, () => {
+        const btn = this.makeButton(BTN_X, y + rowHeight / 2, btnText, () => {
                           if (!isEq) {
                             WeaponManager.equip(item.id);
                             this.refresh();
@@ -161,7 +163,7 @@ export class ShopScene extends Phaser.Scene {
                           if (lvl < sk.maxLevel) {
                             const upgCost = sk.upgradeCost ?? sk.cost;
                             const canAffordUpg = getGold() >= upgCost;
-                            const btn = this.makeButton(BTN_X, y + ROW_H / 2 - 2, `Upgrade ${upgCost}g`, () => {
+                            const btn = this.makeButton(BTN_X, y + rowHeight / 2, 'Upgrade', () => {
                               if (SkillManager.buy(sk.id)) {
                                 playSound(this, SOUND_KEYS.confirm, 0.5);
                                 this.refresh();
@@ -170,14 +172,14 @@ export class ShopScene extends Phaser.Scene {
                             if (!canAffordUpg) btn.setAlpha(0.4);
                             c.add(btn);
                           } else {
-                            const btn = this.makeButton(BTN_X, y + ROW_H / 2 - 2, 'MAX', () => {});
+                            const btn = this.makeButton(BTN_X, y + rowHeight / 2, 'MAX', () => {});
                             btn.setAlpha(0.5);
                             c.add(btn);
                           }
                         } else {
                           const isEq = SkillManager.isEquipped(item.id);
                           const btnText = isEq ? 'Equipped' : 'Equip';
-                          const btn = this.makeButton(BTN_X, y + ROW_H / 2 - 2, btnText, () => {
+                          const btn = this.makeButton(BTN_X, y + rowHeight / 2, btnText, () => {
                             if (!isEq) {
                               SkillManager.equip(item.id);
                               this.refresh();
@@ -188,11 +190,11 @@ export class ShopScene extends Phaser.Scene {
                         }
                       }
                     } else if (locked) {
-                      const btn = this.makeButton(BTN_X, y + ROW_H / 2 - 2, 'Locked', () => {});
+                      const btn = this.makeButton(BTN_X, y + rowHeight / 2, 'Locked', () => {});
                       btn.setAlpha(0.4);
                       c.add(btn);
                     } else if (buyable) {
-                      const btn = this.makeButton(BTN_X, y + ROW_H / 2 - 2, 'Buy', () => {
+                      const btn = this.makeButton(BTN_X, y + rowHeight / 2, 'Buy', () => {
                         const success = isWeapon ? WeaponManager.buy(item.id) : SkillManager.buy(item.id);
                         if (success) {
                           playSound(this, SOUND_KEYS.confirm, 0.5);
@@ -201,11 +203,12 @@ export class ShopScene extends Phaser.Scene {
                       });
                       c.add(btn);
                     } else {
-                      const btn = this.makeButton(BTN_X, y + ROW_H / 2 - 2, `${getGold()}/${item.cost}`, () => {});
+                      const btn = this.makeButton(BTN_X, y + rowHeight / 2, 'Not enough', () => {});
                       btn.setAlpha(0.4);
                       c.add(btn);
                     }
 
+    (c as any).height = rowHeight;
     return c;
   }
 

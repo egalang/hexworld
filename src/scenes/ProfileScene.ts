@@ -18,13 +18,10 @@ export class ProfileScene extends Phaser.Scene {
   }
 
   create() {
-    const bgColor = Phaser.Display.Color.HexStringToColor(Theme.ui.background).color;
     const panelColor = Phaser.Display.Color.HexStringToColor(Theme.ui.panel).color;
     const borderColor = Phaser.Display.Color.HexStringToColor(Theme.ui.border).color;
 
-    const g = this.add.graphics();
-    g.fillStyle(bgColor, 1);
-    g.fillRect(0, 0, WIDTH, HEIGHT);
+    this.add.image(WIDTH / 2, HEIGHT / 2, 'arena_bg').setDisplaySize(WIDTH, HEIGHT);
 
     const profile = getProfile();
     const xpProgress = getXpProgress();

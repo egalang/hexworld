@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { getSettings } from './state/Settings';
 
 export const WIDTH = 450;
 export const HEIGHT = 800;
@@ -93,11 +94,9 @@ export function unlockAudio(scene: Phaser.Scene) {
       unlock?: () => void;
       context?: AudioContext;
       mute?: boolean;
-      volume?: number;
     };
 
     soundManager.mute = false;
-    soundManager.volume = Math.max(soundManager.volume ?? 1, 0.85);
     soundManager.unlock?.();
 
     if (soundManager.context?.state === 'suspended') {
@@ -108,11 +107,12 @@ export function unlockAudio(scene: Phaser.Scene) {
   }
 }
 
-export function playSound(scene: Phaser.Scene, key: string, volume = 0.55) {
+export function playSound(scene: Phaser.Scene, key: string, volume?: number) {
   try {
     unlockAudio(scene);
     if (!scene.cache.audio.exists(key)) return;
-    scene.sound.play(key, { volume });
+    const base = volume ?? 1;
+    scene.sound.play(key, { volume: base * getSettings().sfxVolume });
   } catch {
     // Missing, locked, or unsupported audio should never break gameplay.
   }

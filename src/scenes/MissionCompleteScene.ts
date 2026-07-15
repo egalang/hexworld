@@ -43,9 +43,7 @@ export class MissionCompleteScene extends Phaser.Scene {
   }
 
   private createBackground() {
-    const g = this.add.graphics();
-    g.fillStyle(Phaser.Display.Color.HexStringToColor(Theme.ui.background).color, 1);
-    g.fillRect(0, 0, WIDTH, HEIGHT);
+    this.add.image(WIDTH / 2, HEIGHT / 2, 'arena_bg').setDisplaySize(WIDTH, HEIGHT);
   }
 
   private createOutcomeHeader(outcome: string) {

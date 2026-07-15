@@ -375,18 +375,6 @@ export const WORLD_TILES: WorldTile[] = [
 
   // Row 10
   {
-    id: "mission_15",
-    title: "Final Conquest",
-    type: "mission",
-    q: 0, r: 10,
-    iconId: "⚔️",
-    buildingId: undefined,
-    action: "scene",
-    actionId: "HexConquestScene",
-    missionId: "mission_15",
-    unlocked: false,
-  },
-  {
     id: "mission_14",
     title: "Summit Fortress",
     type: "mission",
@@ -396,6 +384,20 @@ export const WORLD_TILES: WorldTile[] = [
     action: "scene",
     actionId: "HexConquestScene",
     missionId: "mission_14",
+    unlocked: false,
+  },
+
+  // Row 11
+  {
+    id: "mission_15",
+    title: "Final Conquest",
+    type: "mission",
+    q: 1, r: 11,
+    iconId: "⚔️",
+    buildingId: undefined,
+    action: "scene",
+    actionId: "HexConquestScene",
+    missionId: "mission_15",
     unlocked: false,
   },
 ];

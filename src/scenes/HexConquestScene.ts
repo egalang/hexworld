@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
 import {
-    getAiStats,
     saveUnlockedCampaignLevel,
     saveCampaignStars,
     CAMPAIGN_MAX_LEVEL,
@@ -76,8 +75,7 @@ export class HexConquestScene extends Phaser.Scene {
     private victorySoundPlayed = false;
     private centerHoldTurns = 0;
     private lastObjectiveTurnTracked = 0;
-    private actionBarContainer: Phaser.GameObjects.Container | null = null;
-    private skillBarContainer: Phaser.GameObjects.Container | null = null;
+    private combinedBarContainer: Phaser.GameObjects.Container | null = null;
     private pendingConversionBonus = 0;
     private pendingSkillId: string | null = null;
     private selectedActionIndex = 1;
@@ -88,6 +86,8 @@ export class HexConquestScene extends Phaser.Scene {
     private skillModeHex: Hex | null = null;
     private kickDestination: Hex | null = null;
     private usedSkills = new Set<string>();
+    private weaponActive = false;
+    private currentSkillIndex = -1;
 
     constructor() {
         super('HexConquestScene');
@@ -156,8 +156,7 @@ export class HexConquestScene extends Phaser.Scene {
         this.centerHoldTurns = 0;
         this.lastObjectiveTurnTracked = 0;
         this.rewardsGranted = false;
-        this.destroyActionBar();
-        this.destroySkillBar();
+        this.destroyCombinedBar();
         this.pendingConversionBonus = 0;
         this.pendingSkillId = null;
         this.selectedActionIndex = 1;
@@ -166,6 +165,8 @@ export class HexConquestScene extends Phaser.Scene {
         this.skillModeHex = null;
         this.kickDestination = null;
         this.usedSkills.clear();
+        this.weaponActive = false;
+        this.currentSkillIndex = -1;
         const w = WeaponManager.getEquipped();
         this.currentWeaponDurability = w?.durability ?? 0;
     }
@@ -182,8 +183,7 @@ export class HexConquestScene extends Phaser.Scene {
         this.createBackground();
         this.createHeader();
         this.createBoard();
-        this.createActionBar();
-        this.createSkillBar();
+        this.createCombinedBar();
         this.createBottomButtons();
         this.input.keyboard?.off('keydown-R');
         this.input.keyboard?.on('keydown-R', () => this.restartGame());
@@ -195,21 +195,11 @@ export class HexConquestScene extends Phaser.Scene {
     }
 
     private createBackground() {
-        const g = this.add.graphics();
-        g.fillStyle(UI_PANEL_BG, 1);
-        g.fillRect(0, 0, WIDTH, HEIGHT);
-
-        this.add.text(WIDTH / 2, 42, 'HEX CONQUEST', {
-            fontSize: '34px',
-            fontStyle: 'bold',
-            color: Theme.ui.textTitle,
-            stroke: '#000000',
-            strokeThickness: 6,
-        }).setOrigin(0.5);
+        this.add.image(WIDTH / 2, HEIGHT / 2, 'battle_bg').setDisplaySize(WIDTH, HEIGHT);
 
         const modeLabel = this.getModeLabel();
-        this.add.text(WIDTH / 2, 78, modeLabel, {
-            fontSize: '16px',
+        this.add.text(WIDTH / 2, 28, modeLabel, {
+            fontSize: '14px',
             color: Theme.ui.textSecondary,
             stroke: '#000000',
             strokeThickness: 3,
@@ -230,11 +220,11 @@ export class HexConquestScene extends Phaser.Scene {
         const panel = this.add.graphics();
         panel.fillStyle(UI_PANEL_BG, 0.92);
         panel.lineStyle(3, border, 0.7);
-        panel.fillRoundedRect(24, 105, WIDTH - 48, 100, 18);
-        panel.strokeRoundedRect(24, 105, WIDTH - 48, 100, 18);
+        panel.fillRoundedRect(24, 52, WIDTH - 48, 100, 18);
+        panel.strokeRoundedRect(24, 52, WIDTH - 48, 100, 18);
 
-        this.statusText = this.add.text(WIDTH / 2, 129, '', {
-            fontSize: '22px',
+        this.statusText = this.add.text(WIDTH / 2, 72, '', {
+            fontSize: '18px',
             fontStyle: 'bold',
             color: Theme.ui.text,
             stroke: '#000000',
@@ -242,19 +232,19 @@ export class HexConquestScene extends Phaser.Scene {
             align: 'center',
         }).setOrigin(0.5);
 
-        this.countText = this.add.text(WIDTH / 2, 171, '', {
-            fontSize: '16px',
+        this.countText = this.add.text(WIDTH / 2, 122, '', {
+            fontSize: '13px',
             color: Theme.ui.text,
             stroke: '#000000',
-            strokeThickness: 3,
+            strokeThickness: 2,
             align: 'center',
-            wordWrap: { width: WIDTH - 60 },
+            lineSpacing: 2,
         }).setOrigin(0.5);
     }
 
     private createBottomButtons() {
         if (this.isMissionMode) {
-            this.createSmallButton(WIDTH / 2 - 93, 740, 'World Map', () => {
+            this.createSmallButton(WIDTH / 2 - 93, 730, 'World Map', () => {
                 const result: MissionResult = {
                     missionId: this.battleConfig!.missionId,
                     victory: false,
@@ -268,151 +258,120 @@ export class HexConquestScene extends Phaser.Scene {
                 this.tweens.killAll();
                 this.scene.start('MissionCompleteScene', { missionResult: result });
             });
-            this.createSmallButton(WIDTH / 2 + 93, 740, 'Restart', () => this.restartGame());
+            this.createSmallButton(WIDTH / 2 + 93, 730, 'Restart', () => this.restartGame());
         } else {
-            this.createSmallButton(WIDTH / 2 - 93, 740, 'Menu', () => this.backToMenu());
-            this.createSmallButton(WIDTH / 2 + 93, 740, this.mode === 'online' ? 'Leave' : 'Restart', () => this.restartGame());
+            this.createSmallButton(WIDTH / 2 - 93, 730, 'Menu', () => this.backToMenu());
+            this.createSmallButton(WIDTH / 2 + 93, 730, this.mode === 'online' ? 'Leave' : 'Restart', () => this.restartGame());
         }
     }
 
-    private createActionBar() {
-        this.destroyActionBar();
+    private createCombinedBar() {
+        this.destroyCombinedBar();
         if (this.mode !== 'ai' && this.mode !== 'campaign' && this.mode !== 'local') return;
         if (this.turnManager.getCurrentPlayer() !== 'blue') return;
         if (this.aiManager.getAiPlayer() === 'blue') return;
 
         const weapon = WeaponManager.getEquipped();
-        if (!weapon) return;
-
-        const barY = 218;
-        const c = this.add.container(0, 0);
-
-        const g = this.add.graphics();
-        const barBg = Phaser.Display.Color.HexStringToColor(Theme.ui.panel).color;
-        const barBorder = Phaser.Display.Color.HexStringToColor(Theme.brand.gold).color;
-        g.fillStyle(barBg, 0.92);
-        g.lineStyle(1, barBorder, 0.5);
-        g.fillRoundedRect(20, barY - 14, WIDTH - 40, 28, 8);
-        g.strokeRoundedRect(20, barY - 14, WIDTH - 40, 28, 8);
-        c.add(g);
-
-        type ActionItem = { label: string; bonus: number };
-        const items: ActionItem[] = [];
-        if (weapon) items.push({ label: `⚔ ${weapon.name}+${weapon.conversionBonus}`, bonus: weapon.conversionBonus });
-        items.push({ label: 'Normal', bonus: 0 });
-
-        if (this.selectedActionIndex >= items.length) this.selectedActionIndex = items.length - 1;
-
-        const btnW = Math.min(100, (WIDTH - 60) / items.length - 4);
-        const totalW = items.length * (btnW + 4);
-        const startX = (WIDTH - totalW) / 2 + btnW / 2 + 2;
-
-        for (let i = 0; i < items.length; i++) {
-            const item = items[i];
-            const bx = startX + i * (btnW + 4);
-            const isActive = i === this.selectedActionIndex;
-            const btnBg = this.add.graphics();
-            const fill = Phaser.Display.Color.HexStringToColor(isActive ? Theme.button.primary.bg : Theme.button.disabled.bg).color;
-            const txtColor = isActive ? Theme.button.primary.text : Theme.ui.textSecondary;
-            btnBg.fillStyle(fill, 1);
-            btnBg.fillRoundedRect(bx - btnW / 2, barY - 10, btnW, 20, 5);
-            c.add(btnBg);
-
-            let displayLabel = item.label;
-            if (isActive) displayLabel = `▸ ${item.label}`;
-            const txt = this.add.text(bx, barY, displayLabel, {
-                fontSize: '10px', fontStyle: 'bold', color: txtColor,
-                stroke: '#000000', strokeThickness: 1,
-            }).setOrigin(0.5);
-            c.add(txt);
-
-            const zone = this.add.zone(bx, barY, btnW, 20).setInteractive({ useHandCursor: true });
-            c.add(zone);
-
-            zone.on('pointerdown', () => {
-                this.selectedActionIndex = i;
-                this.pendingConversionBonus = item.bonus;
-                this.createActionBar();
-            });
-        }
-
-        c.setDepth(40);
-        this.actionBarContainer = c;
-    }
-
-    private destroyActionBar() {
-        if (this.actionBarContainer) {
-            this.actionBarContainer.destroy();
-            this.actionBarContainer = null;
-        }
-    }
-
-    private createSkillBar() {
-        this.destroySkillBar();
-        if (this.mode !== 'ai' && this.mode !== 'campaign' && this.mode !== 'local') return;
-        if (this.turnManager.getCurrentPlayer() !== 'blue') return;
-        if (this.aiManager.getAiPlayer() === 'blue') return;
-
         const skills = SkillManager.getEquipped().filter(s => !this.usedSkills.has(s.id));
-        if (skills.length === 0) return;
+        if (!weapon && skills.length === 0) return;
 
-        const barY = 250;
+        const barY = 190;
+
         const c = this.add.container(0, 0);
 
-        const g = this.add.graphics();
-        const barBg = Phaser.Display.Color.HexStringToColor(Theme.ui.panel).color;
-        const barBorder = Phaser.Display.Color.HexStringToColor(Theme.reward.skill).color;
-        g.fillStyle(barBg, 0.92);
-        g.lineStyle(1, barBorder, 0.5);
-        g.fillRoundedRect(20, barY - 14, WIDTH - 40, 28, 8);
-        g.strokeRoundedRect(20, barY - 14, WIDTH - 40, 28, 8);
-        c.add(g);
+        const iconBtnW = 64;
+        const iconBtnH = 50;
+        const gap = 24;
+        const hasWeapon = !!weapon;
 
-        const btnW = Math.min(120, (WIDTH - 60) / skills.length - 4);
-        const totalW = skills.length * (btnW + 4);
-        const startX = (WIDTH - totalW) / 2 + btnW / 2 + 2;
+        let wx = 0, sx = 0;
+        if (hasWeapon && skills.length > 0) {
+            const totalBtnW = iconBtnW * 2 + gap;
+            wx = (WIDTH - totalBtnW) / 2 + iconBtnW / 2;
+            sx = wx + iconBtnW + gap;
+        } else {
+            const cx = WIDTH / 2;
+            if (hasWeapon) wx = cx;
+            else sx = cx;
+        }
 
-        for (let i = 0; i < skills.length; i++) {
-            const sk = skills[i];
-            const bx = startX + i * (btnW + 4);
-            const btnBg = this.add.graphics();
-            const fill = Phaser.Display.Color.HexStringToColor(Theme.button.secondary.bg).color;
-            btnBg.fillStyle(fill, 1);
-            btnBg.fillRoundedRect(bx - btnW / 2, barY - 10, btnW, 20, 5);
-            c.add(btnBg);
-
-            let label = `✨ ${sk.name}`;
-            if (this.skillMode && this.pendingSkillId === sk.id) {
-                label = `▸ ${sk.name}`;
-            }
-            const txt = this.add.text(bx, barY, label, {
-                fontSize: '10px', fontStyle: 'bold', color: Theme.reward.skill,
-                stroke: '#000000', strokeThickness: 1,
+        if (hasWeapon) {
+            const isWeaponActive = this.weaponActive;
+            this.makeIconButton(c, wx, barY, '⚔', isWeaponActive, () => {
+                this.weaponActive = !this.weaponActive;
+                this.pendingConversionBonus = this.weaponActive ? weapon.conversionBonus : 0;
+                if (this.skillMode) this.exitSkillMode();
+                if (this.weaponActive) this.currentSkillIndex = -1;
+                this.selectedActionIndex = this.weaponActive ? 0 : 1;
+                this.createCombinedBar();
+            });
+            const durText = this.add.text(wx, barY + 30, `${this.currentWeaponDurability}/${weapon.durability}`, {
+                fontSize: '11px', color: Theme.ui.textSecondary,
+                stroke: '#000000', strokeThickness: 2,
+                fontStyle: 'bold',
             }).setOrigin(0.5);
-            c.add(txt);
+            c.add(durText);
+        }
 
-            const zone = this.add.zone(bx, barY, btnW, 20).setInteractive({ useHandCursor: true });
-            c.add(zone);
-
-            zone.on('pointerdown', () => {
-                if (this.usedSkills.has(sk.id)) return;
+        const skillNames: Record<string, string> = { hex: 'Hx', freeze: 'Fz', kick: 'Kk', blink: 'Bl', teleport: 'Tp' };
+        if (skills.length > 0) {
+            const hasSkillSelected = this.currentSkillIndex >= 0 && this.currentSkillIndex < skills.length;
+            const currentSkill = hasSkillSelected ? skills[this.currentSkillIndex] : null;
+            const skillLabel = currentSkill ? (skillNames[currentSkill.type] || currentSkill.type.substring(0, 2).toUpperCase()) : '✦';
+            const isSkillActive = this.skillMode !== null;
+            this.makeIconButton(c, sx, barY, skillLabel, isSkillActive, () => {
                 if (this.skillMode) {
                     this.exitSkillMode();
+                    this.currentSkillIndex = -1;
                 } else {
+                    const next = (this.currentSkillIndex + 1) % skills.length;
+                    this.currentSkillIndex = next;
+                    const sk = skills[next];
                     this.enterSkillMode(sk.type, sk.id);
                 }
+                this.weaponActive = false;
+                this.pendingConversionBonus = 0;
+                this.selectedActionIndex = 1;
+                this.createCombinedBar();
             });
         }
 
         c.setDepth(40);
-        this.skillBarContainer = c;
+        this.combinedBarContainer = c;
     }
 
-    private destroySkillBar() {
-        if (this.skillBarContainer) {
-            this.skillBarContainer.destroy();
-            this.skillBarContainer = null;
+    private destroyCombinedBar() {
+        if (this.combinedBarContainer) {
+            this.combinedBarContainer.destroy();
+            this.combinedBarContainer = null;
         }
+    }
+
+    private makeIconButton(
+        container: Phaser.GameObjects.Container,
+        x: number, y: number,
+        label: string, active: boolean,
+        onClick: () => void,
+    ) {
+        const btnW = 64;
+        const btnH = 50;
+        const bg = this.add.graphics();
+        const fill = Phaser.Display.Color.HexStringToColor(active ? Theme.button.primary.bg : Theme.button.disabled.bg).color;
+        bg.fillStyle(fill, 1);
+        bg.fillRoundedRect(x - btnW / 2, y - btnH / 2, btnW, btnH, 12);
+        container.add(bg);
+
+        const txt = this.add.text(x, y, label, {
+            fontSize: '28px',
+            color: active ? Theme.button.primary.text : Theme.ui.textSecondary,
+            stroke: '#000000',
+            strokeThickness: 2,
+        }).setOrigin(0.5);
+        container.add(txt);
+
+        const zone = this.add.zone(x, y, btnW, btnH).setInteractive({ useHandCursor: true });
+        container.add(zone);
+        zone.on('pointerdown', onClick);
     }
 
     private enterSkillMode(type: 'kick' | 'blink' | 'freeze' | 'teleport' | 'hex', skillId: string) {
@@ -476,7 +435,7 @@ export class HexConquestScene extends Phaser.Scene {
             }
         }
 
-        this.createSkillBar();
+        this.createCombinedBar();
     }
 
     private exitSkillMode() {
@@ -538,7 +497,7 @@ export class HexConquestScene extends Phaser.Scene {
                 this.combatManager.destroyUnit(hex);
                 this.combatManager.captureTile(nearest, 'red');
                 hex.owner = null;
-                hex.poly?.setFillStyle(BATTLE_NEUTRAL, 1);
+                hex.poly?.setFillStyle(BATTLE_NEUTRAL, 0.5);
                 this.unitManager.removeUnit(hex);
 
                 this.statusText.setText('KICK — Select your piece to move in');
@@ -668,8 +627,8 @@ export class HexConquestScene extends Phaser.Scene {
     private executeKickMove(source: Hex, targetHex: Hex) {
         const mover: Player = 'blue';
         this.unitManager.moveUnit(source, targetHex, mover);
-        source.poly?.setFillStyle(BATTLE_NEUTRAL, 1);
-        targetHex.poly?.setFillStyle(BATTLE_BLUE, 1);
+        source.poly?.setFillStyle(BATTLE_NEUTRAL, 0.5);
+        targetHex.poly?.setFillStyle(BATTLE_BLUE, 0.5);
         this.unitManager.selectUnit(null);
         this.clearHighlights();
 
@@ -696,7 +655,7 @@ export class HexConquestScene extends Phaser.Scene {
         this.combatManager.destroyUnit(target);
         this.combatManager.destroyUnit(source);
         source.owner = null;
-        source.poly?.setFillStyle(BATTLE_NEUTRAL, 1);
+        source.poly?.setFillStyle(BATTLE_NEUTRAL, 0.5);
         this.unitManager.removeUnit(source);
         this.combatManager.captureTile(source, targetOwner!);
         this.combatManager.captureTile(target, mover);
@@ -724,7 +683,7 @@ export class HexConquestScene extends Phaser.Scene {
         this.combatManager.destroyUnit(target);
         this.combatManager.destroyUnit(source);
         source.owner = null;
-        source.poly?.setFillStyle(BATTLE_NEUTRAL, 1);
+        source.poly?.setFillStyle(BATTLE_NEUTRAL, 0.5);
         this.unitManager.removeUnit(source);
         this.combatManager.captureTile(source, targetOwner!);
         this.combatManager.captureTile(target, mover);
@@ -904,8 +863,8 @@ export class HexConquestScene extends Phaser.Scene {
         const points = this.boardManager.getHexPoints(HEX_SIZE - 1).flatMap(p => [p.x, p.y]);
         const fill = hex.owner === 'blue' ? BATTLE_BLUE : hex.owner === 'red' ? BATTLE_RED : BATTLE_NEUTRAL;
 
-        const poly = this.add.polygon(x, y, points, fill, 1);
-        poly.setStrokeStyle(2, BATTLE_STROKE, 1);
+        const poly = this.add.polygon(x, y, points, fill, 0.5);
+        poly.setStrokeStyle(2, BATTLE_STROKE, 0.5);
         poly.setInteractive(new Phaser.Geom.Polygon(this.boardManager.getHexPoints(HEX_SIZE - 1)), Phaser.Geom.Polygon.Contains);
         poly.on('pointerdown', () => this.handleHexTap(hex));
         hex.poly = poly;
@@ -966,7 +925,7 @@ export class HexConquestScene extends Phaser.Scene {
         for (const n of this.boardManager.getNeighbors(hex)) {
             if (!n.owner) {
                 this.validMoves.add(this.boardManager.key(n.q, n.r));
-                n.poly?.setFillStyle(BATTLE_VALID, 1);
+                n.poly?.setFillStyle(BATTLE_VALID, 0.5);
                 this.createMovePreview(n, this.turnManager.getCurrentPlayer());
             }
         }
@@ -1037,8 +996,8 @@ export class HexConquestScene extends Phaser.Scene {
         const mover: Player = this.turnManager.getCurrentPlayer();
 
         this.unitManager.moveUnit(from, target, mover);
-        from.poly?.setFillStyle(BATTLE_NEUTRAL, 1);
-        target.poly?.setFillStyle(mover === 'blue' ? BATTLE_BLUE : BATTLE_RED, 1);
+        from.poly?.setFillStyle(BATTLE_NEUTRAL, 0.5);
+        target.poly?.setFillStyle(mover === 'blue' ? BATTLE_BLUE : BATTLE_RED, 0.5);
         playSound(this, SOUND_KEYS.move, 0.5);
 
         this.unitManager.selectUnit(null);
@@ -1114,7 +1073,7 @@ export class HexConquestScene extends Phaser.Scene {
         this.updateHud();
 
         move.from.poly?.setStrokeStyle(5, BATTLE_SELECTED, 1);
-        move.to.poly?.setFillStyle(BATTLE_VALID, 1);
+        move.to.poly?.setFillStyle(BATTLE_VALID, 0.5);
 
         this.time.delayedCall(350, () => {
             this.unitManager.selectUnit(move.from);
@@ -1275,7 +1234,7 @@ export class HexConquestScene extends Phaser.Scene {
 
         this.unitManager.removeUnit(toHex);
         toHex.owner = mover;
-        toHex.poly?.setFillStyle(mover === 'blue' ? BATTLE_BLUE : BATTLE_RED, 1);
+        toHex.poly?.setFillStyle(mover === 'blue' ? BATTLE_BLUE : BATTLE_RED, 0.5);
 
         const movingPiece = this.add.image(
             fromPos.x + pieceOffsetX,
@@ -1646,47 +1605,32 @@ export class HexConquestScene extends Phaser.Scene {
     private updateHud() {
         const counts = this.boardManager.getCounts();
 
+        const currentPlayer = this.turnManager.getCurrentPlayer();
+        const playerColor = currentPlayer === 'blue' ? Theme.status.info : Theme.status.warning;
+        const turnIcon = currentPlayer === 'blue' ? '🔵' : '🔴';
+
         if (this.aiManager.isThinking()) {
-            this.statusText.setText('RED IS THINKING...');
+            this.statusText.setText(`${turnIcon} RED IS THINKING...`);
             this.statusText.setColor(Theme.status.warning);
-            this.countText.setText(`Turn ${this.turnManager.getTurn()}    Blue ${counts.blue}  |  Red ${counts.red}`);
+            this.countText.setText(`Turn ${this.turnManager.getTurn()}\nBlue ${counts.blue}  |  Red ${counts.red}`);
             return;
         }
 
         if (this.mode === 'online') {
-            const turnText = this.turnManager.getCurrentPlayer() === this.playerColor ? 'YOUR TURN' : `${this.turnManager.getCurrentPlayer().toUpperCase()}'S TURN`;
-            const colorText = this.playerColor ? `You are ${this.playerColor.toUpperCase()}` : 'Online PvP';
-            this.statusText.setText(turnText);
-            this.statusText.setColor(this.turnManager.getCurrentPlayer() === 'blue' ? Theme.status.info : Theme.status.warning);
-            this.countText.setText(`Room ${this.roomCode}  ${colorText}\nTurn ${this.turnManager.getTurn()}  Blue ${counts.blue} | Red ${counts.red}`);
+            const turnText = this.turnManager.getCurrentPlayer() === this.playerColor ? 'YOUR TURN' : `${currentPlayer.toUpperCase()}'S TURN`;
+            this.statusText.setText(`${turnIcon} ${turnText}`);
+            this.statusText.setColor(playerColor);
+            this.countText.setText(`Room ${this.roomCode}\nTurn ${this.turnManager.getTurn()}\nBlue ${counts.blue}  |  Red ${counts.red}`);
             return;
         }
 
-        const weapon = WeaponManager.getEquipped();
-        const weaponLabel = weapon && this.turnManager.getCurrentPlayer() === 'blue'
-            ? ` [${weapon.name} +${weapon.conversionBonus} (${this.currentWeaponDurability}/${weapon.durability})]`
-            : '';
-        this.statusText.setText(`${this.turnManager.getCurrentPlayer().toUpperCase()}'S TURN${weaponLabel}`);
-        this.statusText.setColor(this.turnManager.getCurrentPlayer() === 'blue' ? Theme.status.info : Theme.status.warning);
+        this.statusText.setText(`${turnIcon} ${currentPlayer.toUpperCase()}'S TURN`);
+        this.statusText.setColor(playerColor);
 
-        this.createActionBar();
-        this.createSkillBar();
+        this.createCombinedBar();
 
-        if (this.mode === 'ai') {
-            const stats = getAiStats();
-            this.countText.setText(
-                `${formatAiDifficulty(this.aiManager.getDifficulty())} ${formatAiPersonality(this.aiManager.getPersonality())} AI\nTurn ${this.turnManager.getTurn()}  Blue ${counts.blue} | Red ${counts.red}  Record ${stats.wins}W-${stats.losses}L`
-            );
-            return;
-        }
-
-        if (this.mode === 'campaign') {
-            const objective = getCampaignObjective(this.campaignLevel);
-            this.countText.setText(`Objective: ${this.getCampaignObjectiveProgressText(objective)}\nTurn ${this.turnManager.getTurn()}  Blue ${counts.blue} | Red ${counts.red}`);
-            return;
-        }
-
-        this.countText.setText(`Turn ${this.turnManager.getTurn()}    Blue ${counts.blue}  |  Red ${counts.red}`);
+        const modeLabel = this.getModeLabel();
+        this.countText.setText(`${modeLabel}\nTurn ${this.turnManager.getTurn()}\nBlue ${counts.blue}  |  Red ${counts.red}`);
     }
 
     private clearHighlights() {
@@ -1700,7 +1644,7 @@ export class HexConquestScene extends Phaser.Scene {
 
         for (const h of this.boardManager.getTiles()) {
             const fill = h.owner === 'blue' ? BATTLE_BLUE : h.owner === 'red' ? BATTLE_RED : BATTLE_NEUTRAL;
-            h.poly?.setFillStyle(fill, 1);
+            h.poly?.setFillStyle(fill, 0.5);
             h.poly?.setStrokeStyle(2, BATTLE_STROKE, 1);
         }
     }
