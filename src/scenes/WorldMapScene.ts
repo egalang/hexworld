@@ -72,6 +72,8 @@ export class WorldMapScene extends Phaser.Scene {
         this.add.text(screenX + 16, screenY - 16, '🔒', { fontSize: '12px' }).setOrigin(0.5);
       }
 
+      if (image && !isUnlocked) image.setAlpha(0.5);
+
       const zone = this.add.zone(screenX, screenY, HEX_SIZE * 1.8, HEX_SIZE * 1.8)
         .setInteractive({ useHandCursor: isUnlocked });
 

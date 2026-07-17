@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { WIDTH, HEIGHT, SOUND_KEYS, playSound, unlockAudio } from '../shared';
 import { Theme } from '../config/theme';
-import { getOwnedWeapons, getOwnedSkills, getSkillLevel } from '../state/Inventory';
+import { getOwnedWeapons, getOwnedSkills, getSkillLevel, getWeaponDurability } from '../state/Inventory';
 import { getEquippedWeapon, getEquippedSkills, equipWeapon, isSkillEquipped, equipSkill, unequipSkill } from '../state/Loadout';
 import { getWeaponById } from '../data/weapons';
 import { getSkillById, SkillDefinition } from '../data/skills';
@@ -119,7 +119,7 @@ export class InventoryScene extends Phaser.Scene {
       c.add(name);
 
       const stats = this.activeTab === 'weapons'
-        ? `Bonus: +${(def as any).conversionBonus}  Durability: ${(def as any).durability}`
+        ? (() => { const w = def as any; const cur = getWeaponDurability(w.id, w.durability); return `Bonus: +${w.conversionBonus}  Durability: ${cur}/${w.durability}`; })()
         : (() => {
             const s = def as SkillDefinition;
             const type = s.type.charAt(0).toUpperCase() + s.type.slice(1);

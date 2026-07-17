@@ -1,6 +1,6 @@
 # HexWorld Development Roadmap
 
-> **Version:** 4.0
+> **Version:** 4.1
 >
 > **Project Vision**
 >
@@ -45,7 +45,7 @@ SkillManager   → skills.ts
 Never mix game definitions with player progress.
 
 - **Definitions** (weapons.ts, skills.ts, missions.ts) — static data, never modified
-- **State** (PlayerProfile.ts, Inventory.ts, Loadout.ts) — persisted to localStorage, player-owned data
+- **State** (PlayerProfile.ts, Inventory.ts, Loadout.ts, Settings.ts) — persisted to localStorage, player-owned data
 
 ## Stable IDs Everywhere
 
@@ -60,43 +60,45 @@ Examples: `weapon_iron_sword`, `skill_kick`, `mission_01`, `training_01`
 ```
 src/
 ├── config/
-│   ├── colors.ts       # Color palette constants (50+ raw hex strings)
+│   ├── colors.ts       # Color palette constants (50 exact hex constants)
 │   └── theme.ts        # Semantic Theme object composing colors
 ├── data/
 │   ├── battleConfig.ts # BattleConfig / MissionResult interfaces
 │   ├── hexUtils.ts     # Hex math utilities
-│   ├── missions.ts     # 15 campaign + 3 training mission definitions
-│   ├── weapons.ts      # 4 weapon definitions (conversionBonus, durability)
+│   ├── missions.ts     # 18 mission definitions (3 training + 15 campaign), linear unlock chain
+│   ├── weapons.ts      # 4 weapon definitions (conversionBonus, durability, imageUrl)
 │   ├── skills.ts       # 5 skill definitions (kick, blink, freeze, teleport, hex)
-│   └── worldMap.ts     # 31 world map tiles (hex-based navigation)
+│   └── worldMap.ts     # 30 world map tiles (hex-based navigation)
 ├── state/
 │   ├── PlayerProfile.ts # Commander level, XP, gold, stats, completed missions
-│   ├── Inventory.ts     # Owned weapon/skill IDs + skillUpgrades map
-│   ├── Loadout.ts       # Currently equipped weapon + skills (max 2)
-│   └── MissionProgress.ts # Legacy (deprecated, auto-migrated to PlayerProfile)
+│   ├── Inventory.ts     # Owned weapon/skill IDs + skillUpgrades + weaponDurability maps
+│   ├── Loadout.ts       # Currently equipped weapon (1 slot) + skills (2 slots)
+│   ├── MissionProgress.ts # Legacy (deprecated, auto-migrated to PlayerProfile)
+│   └── Settings.ts      # Music/SFX volume, fullscreen toggle, player name
 ├── managers/
 │   ├── BoardManager.ts  # Hex grid creation, neighbors, pixel coords
 │   ├── UnitManager.ts   # Unit sprites creation/destruction/movement
 │   ├── CombatManager.ts # Attack/convert logic (respects hexed tiles), victory checking
 │   ├── TurnManager.ts   # Turn/player tracking
 │   ├── AIManager.ts     # AI move scoring (skips frozen pieces, hexed tiles)
-│   ├── MissionManager.ts # Mission lookup, unlock logic, result processing
+│   ├── MissionManager.ts # Mission lookup, unlock logic (data-driven via startsUnlocked), result processing
 │   ├── EconomyManager.ts # Gold/XP operations (static wrapper over PlayerProfile)
-│   ├── WeaponManager.ts  # Weapon purchase, equip, query (static)
+│   ├── WeaponManager.ts  # Weapon purchase, equip, query, durability init (static)
 │   └── SkillManager.ts   # Skill purchase, equip, query, upgrade (static)
 └── scenes/
     ├── BootScene.ts
-    ├── PreLoaderScene.ts
-    ├── MenuScene.ts         # Bypassed — game flow is Boot → Preloader → WorldMap
-    ├── WorldMapScene.ts     # Navigation hub, music starts here
-    ├── ProfileScene.ts      # Commander stats display
-    ├── InventoryScene.ts    # Owned items, equip/unequip, shows skill level
-    ├── ShopScene.ts         # Buy/Upgrade weapons/skills, Locked/Available/Owned/Max
-    ├── SettingsScene.ts     # Placeholder
-    ├── AiSetupScene.ts      # AI difficulty/personality selection
+    ├── PreLoaderScene.ts # Logo + progress bar + loading text near bottom
+    ├── MenuScene.ts      # Bypassed — game flow is Boot → Preloader → WorldMap
+    ├── MusicManager.ts   # Background music controller
+    ├── WorldMapScene.ts  # Navigation hub, locked tiles at 50% opacity
+    ├── ProfileScene.ts   # Commander stats display
+    ├── InventoryScene.ts # Owned items, equip/unequip, shows current/max durability
+    ├── ShopScene.ts      # Buy/Repair/Info for weapons, Buy/Upgrade/Equip for skills
+    ├── SettingsScene.ts  # Music/SFX volume controls, fullscreen toggle, player name editor
+    ├── AiSetupScene.ts   # AI difficulty/personality selection
     ├── CampaignLevelSelectScene.ts
-    ├── OnlineLobbyScene.ts  # PvP room list
-    ├── HexConquestScene.ts  # Main gameplay, action bar + skill bar, skill modes
+    ├── OnlineLobbyScene.ts # PvP room list
+    ├── HexConquestScene.ts # Main gameplay, combined action bar, weapon durability degradation
     └── MissionCompleteScene.ts # Post-mission result display
 ```
 
@@ -114,19 +116,19 @@ Launch Game → World Map → Choose Mission → Battle → Victory → Gold →
 
 ## Milestone 1 — World Map
 
-- `src/data/worldMap.ts` — 31 data-driven hexagonal tiles
-- `WorldMapScene.ts` — renders tiles, handles navigation, unlock states
+- `src/data/worldMap.ts` — 30 data-driven hexagonal tiles
+- `WorldMapScene.ts` — renders tiles, handles navigation, unlock states, locked tiles at 50% alpha
 - `src/data/hexUtils.ts` — axial-to-pixel conversion, hex rendering
 
 ## Milestone 2 — Battle Configuration System
 
-- `src/data/missions.ts` — 18 mission definitions (3 training + 15 campaign)
+- `src/data/missions.ts` — 18 mission definitions (3 training + 15 campaign) in a linear unlock chain
 - `src/data/battleConfig.ts` — `BattleConfig` / `MissionResult` interfaces
-- `MissionManager.ts` — mission lookup, unlock graph, result processing
+- `MissionManager.ts` — mission lookup, data-driven unlock logic via `startsUnlocked` field, result processing
 - `MissionCompleteScene.ts` — dedicated scene for post-mission results (victory/defeat/abort)
 - World map missions launch into HexConquestScene with `BattleConfig`
 - Rewards granted once (duplicate prevention via flag)
-- Unlocks are data-driven via `unlocks[]` array
+- Unlocks are data-driven via `unlocks[]` array with `startsUnlocked` for initial missions
 
 ## Milestone 3 — Commander Progression
 
@@ -139,18 +141,24 @@ Launch Game → World Map → Choose Mission → Battle → Victory → Gold →
 
 ## Milestone 4 — Equipment Management
 
-- **`src/data/weapons.ts`** — 4 weapons with `conversionBonus`, `durability`, `requiredLevel`, `cost`
+- **`src/data/weapons.ts`** — 4 weapons with `conversionBonus`, `durability`, `requiredLevel`, `cost`, optional `imageUrl`
 - **`src/data/skills.ts`** — 5 skills sorted weakest→strongest: Hex (150g/lv1, upgradeable lv1→3), Freeze (250g/lv2, upgradeable lv2→4), Kick (350g/lv4), Blink (500g/lv5), Teleport (650g/lv6)
-- **`src/state/Inventory.ts`** — persistent owned weapon/skill IDs + `skillUpgrades` map for upgradeable skills
+- **`src/state/Inventory.ts`** — persistent owned weapon/skill IDs + `skillUpgrades` map + `weaponDurability` map (tracks current durability per weapon)
 - **`src/state/Loadout.ts`** — persistent equipped weapon (1 slot) + skills (2 slots)
-- **`WeaponManager.ts`** — static: `buy`, `equip`, `canBuy`, `getConversionBonus`, `isOwned`
-- **`SkillManager.ts`** — static: `buy` (handles upgrades), `equip`, `unequip`, `canBuy`, `getLevel`, `slotsAvailable`
-- **`InventoryScene.ts`** — tabbed UI (Weapons/Skills), owned items with Equip/Unequip, level display for upgradeable skills
-- **`ShopScene.ts`** — states: Locked, Available, Owned (Equip), Upgrade, MAX
+- **`WeaponManager.ts`** — static: `buy`, `equip`, `canBuy`, `getConversionBonus`, `isOwned`; initializes durability on buy
+- **`SkillManager.ts`** — static: `buy` (handles upgrades), `equip`, `unequip`, `canBuy` (checks gold + level), `getLevel`, `slotsAvailable`
+- **`InventoryScene.ts`** — tabbed UI (Weapons/Skills), owned items with Equip/Unequip, shows current/max durability for weapons
+- **`ShopScene.ts`** — states: Locked, Available, Buy, Owned (Equip/Repair/MAX), Upgrade. Repair costs 50% of weapon price. Info button opens image popup with rounded corners and brown border. Upgrade button dims on insufficient level or gold.
 - **`worldMap.ts`** — shopCategory field on shop tiles
-- **`HexConquestScene.ts`** — permanent action bar (weapon + Normal) + skill bar (unused skills). Skill mode system: `enterSkillMode`/`exitSkillMode`/`handleSkillTap`/`execute*`. Uses index-based selection, `usedSkills` Set. Normal default selection.
+- **`HexConquestScene.ts`** — combined action bar, weapon durability degradation per use, auto-unequip on break, weapon/skill resets to unselected after each move
 - **`CombatManager.ts`** — respects `hexed` tiles on conversion, clears `frozen` on capture
 - **`AIManager.ts`** — skips frozen pieces and hexed tiles in move generation/scoring
+
+## Milestone 5 — Settings
+
+- **`src/state/Settings.ts`** — `SettingsData` with `musicVolume`, `sfxVolume`, `fullscreen`, `playerName`, persisted to localStorage
+- **`SettingsScene.ts`** — Music volume (0–100% steps), SFX volume (0–100% steps), fullscreen toggle (ON/OFF), player name editor (prompt), back to world map
+- **`MusicManager.ts`** — background music playback controller
 
 ---
 
@@ -167,6 +175,7 @@ Launch Game → World Map → Choose Mission → Battle → Victory → Gold →
   conversionBonus: 1,
   durability: 5,
   requiredLevel: 1,
+  imageUrl?: "https://...",
 }
 ```
 
@@ -199,23 +208,33 @@ Launch Game → World Map → Choose Mission → Battle → Victory → Gold →
 }
 ```
 
+## Durability System
+
+- Each weapon has a `durability` stat (max durability from definition)
+- Current durability is persisted in `Inventory.weaponDurability` map
+- Each use in battle (when weapon is active) decrements durability by 1
+- When durability reaches 0, weapon is auto-unequipped
+- Shop shows "Repair" (50% of weapon cost) for damaged owned weapons, restores to max
+- Inventory/Shop display shows `current/max` durability
+
 ## Item States
 
-| State     | Shop                | Inventory                | Battle                        |
-|-----------|---------------------|--------------------------|-------------------------------|
-| Locked    | Dimmed, not buyable | N/A                      | N/A                           |
-| Available | Buy button          | N/A                      | N/A                           |
-| Owned     | Equip/Upgrade/MAX   | Shown in list with level | N/A                           |
-| Equipped  | "Equipped" badge    | Highlighted border       | Shows in skill bar (if unused)|
+| State     | Shop                           | Inventory                | Battle                        |
+|-----------|--------------------------------|--------------------------|-------------------------------|
+| Locked    | Dimmed, not buyable            | N/A                      | N/A                           |
+| Available | Buy button                     | N/A                      | N/A                           |
+| Owned     | Equip/Repair/Upgrade/MAX/Info  | Shown in list with level | N/A                           |
+| Equipped  | "Equipped" badge               | Highlighted border       | Shows in skill bar (if unused)|
 
 ## Battle Integration
 
 When it's blue's turn:
-1. **Action bar** (y=218): shows equipped weapon + Normal as toggle buttons. Defaults to Normal.
-2. **Skill bar** (y=250): shows unused equipped skills (filtered by `usedSkills` Set).
-3. Clicking a skill enters skill mode: shows instructions, highlights valid targets, two-phase interaction for some skills.
+1. **Combined bar** (y=190): shows equipped weapon (if durability > 0) + unused equipped skills side by side. No "Normal" button. Default state: weapon unselected, no skill active.
+2. Tapping the weapon toggles it on/off. Active weapon provides `pendingConversionBonus` for extra conversions.
+3. Tapping the skill button cycles through available skills. Enters skill mode with instructions and target highlighting.
 4. After skill use, it's added to `usedSkills` and the bar is rebuilt.
-5. Normal/weapon move uses `pendingConversionBonus` for extra conversions. `applyConversionBonus` converts exactly N tiles (not flood-fill).
+5. After any move, weapon/skill resets to unselected, bar is destroyed and rebuilt on next turn.
+6. `applyConversionBonus` converts exactly N tiles (not flood-fill).
 
 ---
 
@@ -248,15 +267,36 @@ When it's blue's turn:
 
 ---
 
-# Remaining Milestones
+# Mission Unlock System
 
-## Milestone 5 — Settings
+## Linear Chain
 
-- Music volume, SFX volume, fullscreen toggle
-- Player name editor
-- Persist settings to localStorage
+```
+training_01 (starts unlocked) → training_02 → training_03 →
+mission_01 → mission_02 → mission_03 → mission_04 → mission_05 →
+mission_06 → mission_07 → mission_08 → mission_09 → mission_10 →
+mission_11 → mission_12 → mission_13 → mission_14 → mission_15
+```
 
-## Future Content (post-MVP)
+- Only `training_01` has `startsUnlocked: true` — all others must be unlocked sequentially.
+- Each mission's `unlocks[]` array references exactly the next mission in the chain.
+- `MissionManager.getUnlockedMissions()` reads `startsUnlocked` from data + completed missions' `unlocks[]`.
+- No special-casing for training missions — fully data-driven.
+
+---
+
+# Scene Flow
+
+```
+BootScene → PreLoaderScene (logo, progress bar, loading text) → WorldMapScene
+```
+
+- `MenuScene` is registered but bypassed in the main flow; accessible via buttons.
+- `PreLoaderScene` layout: logo centered near top, progress bar below it, loading text near bottom.
+
+---
+
+# Future Content (post-MVP)
 
 - Fog of War
 - Better AI

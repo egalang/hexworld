@@ -28,10 +28,7 @@ export class MissionManager {
     const unlocked = new Set<string>();
 
     for (const m of MISSIONS) {
-      if (m.id.startsWith('training_')) {
-        unlocked.add(m.id);
-        continue;
-      }
+      if (m.startsUnlocked) unlocked.add(m.id);
     }
 
     for (const id of completedIds) {
@@ -48,7 +45,8 @@ export class MissionManager {
   }
 
   isMissionUnlocked(missionId: string, completedIds: Set<string>): boolean {
-    if (missionId.startsWith('training_')) return true;
+    const def = getMissionById(missionId);
+    if (def?.startsUnlocked) return true;
     if (completedIds.has(missionId)) return true;
 
     for (const completedId of completedIds) {

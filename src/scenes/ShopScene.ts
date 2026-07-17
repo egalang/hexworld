@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { WIDTH, HEIGHT, SOUND_KEYS, playSound, unlockAudio } from '../shared';
 import { Theme } from '../config/theme';
 import { getGold, getLevel } from '../state/PlayerProfile';
-import { isWeaponOwned, isSkillOwned, getSkillLevel } from '../state/Inventory';
+import { isWeaponOwned, isSkillOwned, getSkillLevel, getWeaponDurability, setWeaponDurability } from '../state/Inventory';
+import { EconomyManager } from '../managers/EconomyManager';
 import { getEquippedWeapon } from '../state/Loadout';
 import { WEAPONS, getWeaponById, WeaponDefinition } from '../data/weapons';
 import { SKILLS, getSkillById, getRequiredLevelForLevel, SkillDefinition } from '../data/skills';
@@ -98,7 +99,8 @@ export class ShopScene extends Phaser.Scene {
       let detail = `Cost: ${item.cost} Gold`;
       if (isWeapon) {
         const w = item as WeaponDefinition;
-        detail += `  Bonus: +${w.conversionBonus}  Durability: ${w.durability}`;
+        const dur = owned ? getWeaponDurability(w.id, w.durability) : w.durability;
+        detail += `  Bonus: +${w.conversionBonus}  Durability: ${dur}/${w.durability}`;
       } else if (sk.maxLevel) {
         const lvl = owned ? getSkillLevel(sk.id) : 1;
         detail += `  Level ${lvl}/${sk.maxLevel}  Once per battle`;
@@ -146,40 +148,55 @@ export class ShopScene extends Phaser.Scene {
 
     if (owned) {
       if (isWeapon) {
-        const isEq = getEquippedWeapon() === item.id;
-        const btnText = isEq ? 'Equipped' : 'Equip';
-        const btn = this.makeButton(BTN_X, y + rowHeight / 2, btnText, () => {
-                          if (!isEq) {
-                            WeaponManager.equip(item.id);
-                            this.refresh();
-                          }
-                        });
-                        if (isEq) btn.setAlpha(0.6);
-                        c.add(btn);
-                      } else {
+        const w = item as WeaponDefinition;
+        const dur = getWeaponDurability(w.id, w.durability);
+        if (dur < w.durability) {
+          const repairCost = Math.ceil(w.cost * 0.5);
+          const canRepair = getGold() >= repairCost;
+          const btn = this.makeButton(BTN_X, y + rowHeight / 2 - 18, 'Repair', () => {
+            if (EconomyManager.spendGold(repairCost)) {
+              setWeaponDurability(w.id, w.durability);
+              playSound(this, SOUND_KEYS.confirm, 0.5);
+              this.refresh();
+            }
+          });
+          if (!canRepair) btn.setAlpha(0.4);
+          c.add(btn);
+        } else {
+          const isEq = getEquippedWeapon() === item.id;
+          const btnText = isEq ? 'Equipped' : 'Equip';
+          const btn = this.makeButton(BTN_X, y + rowHeight / 2 - 18, btnText, () => {
+            if (!isEq) {
+              WeaponManager.equip(item.id);
+              this.refresh();
+            }
+          });
+          if (isEq) btn.setAlpha(0.6);
+          c.add(btn);
+        }
+      } else {
                         const sk = item as SkillDefinition;
                         if (sk.maxLevel) {
                           const lvl = getSkillLevel(sk.id);
                           if (lvl < sk.maxLevel) {
-                            const upgCost = sk.upgradeCost ?? sk.cost;
-                            const canAffordUpg = getGold() >= upgCost;
-                            const btn = this.makeButton(BTN_X, y + rowHeight / 2, 'Upgrade', () => {
+                            const canUpg = SkillManager.canBuy(sk.id);
+                            const btn = this.makeButton(BTN_X, y + rowHeight / 2 - 18, 'Upgrade', () => {
                               if (SkillManager.buy(sk.id)) {
                                 playSound(this, SOUND_KEYS.confirm, 0.5);
                                 this.refresh();
                               }
                             });
-                            if (!canAffordUpg) btn.setAlpha(0.4);
+                            if (!canUpg.allowed) btn.setAlpha(0.4);
                             c.add(btn);
                           } else {
-                            const btn = this.makeButton(BTN_X, y + rowHeight / 2, 'MAX', () => {});
+                            const btn = this.makeButton(BTN_X, y + rowHeight / 2 - 18, 'MAX', () => {});
                             btn.setAlpha(0.5);
                             c.add(btn);
                           }
                         } else {
                           const isEq = SkillManager.isEquipped(item.id);
                           const btnText = isEq ? 'Equipped' : 'Equip';
-                          const btn = this.makeButton(BTN_X, y + rowHeight / 2, btnText, () => {
+                          const btn = this.makeButton(BTN_X, y + rowHeight / 2 - 18, btnText, () => {
                             if (!isEq) {
                               SkillManager.equip(item.id);
                               this.refresh();
@@ -190,11 +207,11 @@ export class ShopScene extends Phaser.Scene {
                         }
                       }
                     } else if (locked) {
-                      const btn = this.makeButton(BTN_X, y + rowHeight / 2, 'Locked', () => {});
+                      const btn = this.makeButton(BTN_X, y + rowHeight / 2 - 18, 'Locked', () => {});
                       btn.setAlpha(0.4);
                       c.add(btn);
                     } else if (buyable) {
-                      const btn = this.makeButton(BTN_X, y + rowHeight / 2, 'Buy', () => {
+                      const btn = this.makeButton(BTN_X, y + rowHeight / 2 - 18, 'Buy', () => {
                         const success = isWeapon ? WeaponManager.buy(item.id) : SkillManager.buy(item.id);
                         if (success) {
                           playSound(this, SOUND_KEYS.confirm, 0.5);
@@ -203,12 +220,21 @@ export class ShopScene extends Phaser.Scene {
                       });
                       c.add(btn);
                     } else {
-                      const btn = this.makeButton(BTN_X, y + rowHeight / 2, 'Not enough', () => {});
+                      const btn = this.makeButton(BTN_X, y + rowHeight / 2 - 18, 'Not enough', () => {});
                       btn.setAlpha(0.4);
                       c.add(btn);
                     }
 
-    (c as any).height = rowHeight;
+    if (isWeapon) {
+      const w = item as WeaponDefinition;
+      if (w.imageUrl) {
+        const infoBtn = this.makeButton(BTN_X, cursorY - 3, 'Info', () => this.showInfoPopup(w.imageUrl!));
+        c.add(infoBtn);
+        cursorY += 28;
+      }
+    }
+
+    (c as any).height = cursorY - y + 20;
     return c;
   }
 
@@ -235,6 +261,79 @@ export class ShopScene extends Phaser.Scene {
   private refresh() {
     this.goldText.setText(`Gold: ${getGold()}`);
     this.scene.restart({ category: this.category });
+  }
+
+  private showInfoPopup(url: string) {
+    const popup = this.add.container(0, 0).setDepth(200);
+
+    const loadKey = 'popup_' + Date.now();
+
+    const destroyPopup = () => {
+      if (this.textures.exists(loadKey)) this.textures.remove(loadKey);
+      popup.destroy();
+    };
+
+    const overlay = this.add.graphics();
+    overlay.fillStyle(0x000000, 0.7);
+    overlay.fillRect(0, 0, WIDTH, HEIGHT);
+    overlay.setInteractive(new Phaser.Geom.Rectangle(0, 0, WIDTH, HEIGHT), Phaser.Geom.Rectangle.Contains);
+    overlay.on('pointerdown', destroyPopup);
+    popup.add(overlay);
+    this.load.image(loadKey, url);
+    this.load.start();
+
+    const loadingText = this.add.text(WIDTH / 2, HEIGHT / 2, 'Loading...', {
+      fontSize: '18px', color: '#ffffff',
+      stroke: '#000000', strokeThickness: 3,
+    }).setOrigin(0.5);
+    popup.add(loadingText);
+
+    const onLoaded = () => {
+      loadingText.destroy();
+      const tex = this.textures.get(loadKey);
+      if (!tex || !tex.key) return;
+      const img = this.add.image(0, 0, loadKey);
+      const maxW = WIDTH - 60;
+      const maxH = HEIGHT - 120;
+      const scale = Math.min(maxW / img.width, maxH / img.height, 1);
+      img.setScale(scale);
+      img.setPosition(WIDTH / 2, HEIGHT / 2);
+
+      const maskShape = this.add.graphics();
+      maskShape.fillStyle(0xffffff);
+      maskShape.fillRoundedRect(
+        WIDTH / 2 - img.displayWidth / 2,
+        HEIGHT / 2 - img.displayHeight / 2,
+        img.displayWidth,
+        img.displayHeight,
+        17,
+      );
+      const mask = maskShape.createGeometryMask();
+      img.setMask(mask);
+      maskShape.setAlpha(0);
+      popup.add(maskShape);
+      popup.add(img);
+
+      const border = this.add.graphics();
+      border.lineStyle(12, 0x3B1F0B, 1);
+      border.strokeRoundedRect(
+        WIDTH / 2 - (img.displayWidth + 2) / 2,
+        HEIGHT / 2 - (img.displayHeight + 2) / 2,
+        img.displayWidth + 2,
+        img.displayHeight + 2,
+        17,
+      );
+      popup.add(border);
+
+      const closeBtn = this.add.text(WIDTH / 2 + img.displayWidth / 2 + 8, HEIGHT / 2 - img.displayHeight / 2 - 8, '✕', {
+        fontSize: '24px', fontStyle: 'bold', color: '#ffffff',
+        stroke: '#000000', strokeThickness: 4,
+      }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+      closeBtn.on('pointerdown', destroyPopup);
+      popup.add(closeBtn);
+    };
+    this.load.once(`filecomplete-image-${loadKey}`, onLoaded);
+    this.load.once('loaderror', () => { loadingText.setText('Failed to load'); });
   }
 
   private createBackButton() {

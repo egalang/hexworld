@@ -1,6 +1,6 @@
 import { getLevel } from '../state/PlayerProfile';
 import { getEquippedWeapon, equipWeapon } from '../state/Loadout';
-import { isWeaponOwned, ownWeapon } from '../state/Inventory';
+import { isWeaponOwned, ownWeapon, setWeaponDurability } from '../state/Inventory';
 import { getWeaponById, WeaponDefinition } from '../data/weapons';
 import { EconomyManager } from './EconomyManager';
 
@@ -39,6 +39,7 @@ export class WeaponManager {
     const def = getWeaponById(id)!;
     if (!EconomyManager.spendGold(def.cost)) return false;
     ownWeapon(id);
+    setWeaponDurability(id, def.durability);
     return true;
   }
 

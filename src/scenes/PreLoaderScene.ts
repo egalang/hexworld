@@ -45,19 +45,6 @@ export class PreloaderScene extends Phaser.Scene {
       .setScale(0.35);
 
     //
-    // Loading text
-    //
-    const loadingText = this.add.text(
-      0,
-      20,
-      "Loading... 0%",
-      {
-        fontSize: "20px",
-        color: "#ffffff",
-      }
-    ).setOrigin(0.5);
-
-    //
     // Progress box
     //
     const box = this.add.graphics();
@@ -65,7 +52,7 @@ export class PreloaderScene extends Phaser.Scene {
     box.fillStyle(0xffffff, 0.20);
     box.fillRoundedRect(
       -170,
-      55,
+      280,
       340,
       22,
       11
@@ -77,13 +64,26 @@ export class PreloaderScene extends Phaser.Scene {
     this.progressBar = this.add.graphics();
 
     //
+    // Loading text
+    //
+    const loadingText = this.add.text(
+      0,
+      330,
+      "Loading... 0%",
+      {
+        fontSize: "20px",
+        color: "#ffffff",
+      }
+    ).setOrigin(0.5);
+
+    //
     // Add everything to the container
     //
     ui.add([
       logo,
-      loadingText,
       box,
       this.progressBar,
+      loadingText,
     ]);
 
     //
@@ -97,7 +97,7 @@ export class PreloaderScene extends Phaser.Scene {
 
       this.progressBar.fillRoundedRect(
         -165,
-        60,
+        285,
         330 * value,
         12,
         6

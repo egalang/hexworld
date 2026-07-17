@@ -4,10 +4,11 @@ export interface InventoryData {
   ownedWeapons: string[];
   ownedSkills: string[];
   skillUpgrades: Record<string, number>;
+  weaponDurability: Record<string, number>;
 }
 
 function defaultInventory(): InventoryData {
-  return { ownedWeapons: [], ownedSkills: [], skillUpgrades: {} };
+  return { ownedWeapons: [], ownedSkills: [], skillUpgrades: {}, weaponDurability: {} };
 }
 
 function load(): InventoryData {
@@ -19,6 +20,7 @@ function load(): InventoryData {
       ownedWeapons: Array.isArray(d.ownedWeapons) ? d.ownedWeapons : [],
       ownedSkills: Array.isArray(d.ownedSkills) ? d.ownedSkills : [],
       skillUpgrades: (d.skillUpgrades && typeof d.skillUpgrades === 'object') ? d.skillUpgrades : {},
+      weaponDurability: (d.weaponDurability && typeof d.weaponDurability === 'object') ? d.weaponDurability : {},
     };
   } catch {
     return defaultInventory();
@@ -96,5 +98,22 @@ export function getSkillLevel(id: string): number {
 export function setUpgradeLevel(id: string, level: number): void {
   const d = getData();
   d.skillUpgrades[id] = level;
+  commit();
+}
+
+export function getWeaponDurability(id: string, maxDurability: number): number {
+  const d = getData();
+  return d.weaponDurability[id] ?? maxDurability;
+}
+
+export function setWeaponDurability(id: string, value: number): void {
+  const d = getData();
+  d.weaponDurability[id] = value;
+  commit();
+}
+
+export function resetAllWeaponDurability(): void {
+  const d = getData();
+  d.weaponDurability = {};
   commit();
 }

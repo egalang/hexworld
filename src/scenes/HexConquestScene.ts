@@ -37,7 +37,7 @@ import { AIManager } from '../managers/AIManager';
 import { Theme } from '../config/theme';
 import { WeaponManager } from '../managers/WeaponManager';
 import { SkillManager } from '../managers/SkillManager';
-import { getSkillLevel } from '../state/Inventory';
+import { getSkillLevel, getWeaponDurability, setWeaponDurability } from '../state/Inventory';
 
 const hexColor = (c: string) => Phaser.Display.Color.HexStringToColor(c).color;
 const BATTLE_BLUE = hexColor(Theme.battle.blue);
@@ -168,7 +168,7 @@ export class HexConquestScene extends Phaser.Scene {
         this.weaponActive = false;
         this.currentSkillIndex = -1;
         const w = WeaponManager.getEquipped();
-        this.currentWeaponDurability = w?.durability ?? 0;
+        this.currentWeaponDurability = w ? getWeaponDurability(w.id, w.durability) : 0;
     }
 
     create() {
@@ -1008,13 +1008,18 @@ export class HexConquestScene extends Phaser.Scene {
 
         if (this.pendingConversionBonus > 0 && this.currentWeaponDurability > 0) {
             this.currentWeaponDurability--;
+            const eq = WeaponManager.getEquipped();
+            if (eq) setWeaponDurability(eq.id, this.currentWeaponDurability);
             if (this.currentWeaponDurability <= 0) {
                 WeaponManager.equip(null);
             }
         }
 
+        this.weaponActive = false;
+        this.currentSkillIndex = -1;
         this.pendingConversionBonus = 0;
         this.selectedActionIndex = 1;
+        this.destroyCombinedBar();
         const allConverted = [...converted, ...bonusConverted];
         if (allConverted.length > 0) playSound(this, SOUND_KEYS.convert, 0.5);
         this.flashConversions(target, allConverted);
@@ -1025,6 +1030,7 @@ export class HexConquestScene extends Phaser.Scene {
             this.turnManager.nextPlayer();
             const w = WeaponManager.getEquipped();
             if (!w) this.currentWeaponDurability = 0;
+            else this.currentWeaponDurability = getWeaponDurability(w.id, w.durability);
             this.updateHud();
 
             if (this.checkVictory()) return;
