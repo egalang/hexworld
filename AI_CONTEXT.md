@@ -87,7 +87,7 @@ src/
 │   └── SkillManager.ts   # Skill purchase, equip, query, upgrade (static)
 └── scenes/
     ├── BootScene.ts
-    ├── PreLoaderScene.ts # Logo + progress bar + loading text near bottom
+    ├── PreLoaderScene.ts # Logo fills full screen, progress bar + loading text overlaid
     ├── MenuScene.ts      # Bypassed — game flow is Boot → Preloader → WorldMap
     ├── MusicManager.ts   # Background music controller
     ├── WorldMapScene.ts  # Navigation hub, locked tiles at 50% opacity
@@ -122,7 +122,7 @@ Launch Game → World Map → Choose Mission → Battle → Victory → Gold →
 
 ## Milestone 2 — Battle Configuration System
 
-- `src/data/missions.ts` — 18 mission definitions (3 training + 15 campaign) in a linear unlock chain
+- `src/data/missions.ts` — 18 mission definitions (3 training + 15 campaign) in a linear unlock chain, each with optional `story` and `imagePath` fields
 - `src/data/battleConfig.ts` — `BattleConfig` / `MissionResult` interfaces
 - `MissionManager.ts` — mission lookup, data-driven unlock logic via `startsUnlocked` field, result processing
 - `MissionCompleteScene.ts` — dedicated scene for post-mission results (victory/defeat/abort)
@@ -141,7 +141,7 @@ Launch Game → World Map → Choose Mission → Battle → Victory → Gold →
 
 ## Milestone 4 — Equipment Management
 
-- **`src/data/weapons.ts`** — 4 weapons with `conversionBonus`, `durability`, `requiredLevel`, `cost`, optional `imageUrl`
+- **`src/data/weapons.ts`** — 4 weapons with `conversionBonus`, `durability`, `requiredLevel`, `cost`, optional `imageUrl`. Bronze Sword requires level 2.
 - **`src/data/skills.ts`** — 5 skills sorted weakest→strongest: Hex (150g/lv1, upgradeable lv1→3), Freeze (250g/lv2, upgradeable lv2→4), Kick (350g/lv4), Blink (500g/lv5), Teleport (650g/lv6)
 - **`src/state/Inventory.ts`** — persistent owned weapon/skill IDs + `skillUpgrades` map + `weaponDurability` map (tracks current durability per weapon)
 - **`src/state/Loadout.ts`** — persistent equipped weapon (1 slot) + skills (2 slots)
@@ -159,6 +159,16 @@ Launch Game → World Map → Choose Mission → Battle → Victory → Gold →
 - **`src/state/Settings.ts`** — `SettingsData` with `musicVolume`, `sfxVolume`, `fullscreen`, `playerName`, persisted to localStorage
 - **`SettingsScene.ts`** — Music volume (0–100% steps), SFX volume (0–100% steps), fullscreen toggle (ON/OFF), player name editor (prompt), back to world map
 - **`MusicManager.ts`** — background music playback controller
+
+## Milestone 6 — Mission Popup & Story Content
+
+- **`src/data/missions.ts`** — all 18 missions now have `story` (lore text) and `imagePath` (background image filename) fields
+- **`WorldMapScene.ts`** — clicking an unlocked mission tile opens a full-image popup with title, description, story, and START MISSION button; uses same rounded-corner mask (17px radius) + 12px brown border (`#3B1F0B`) style as weapon info popup
+- **`MissionCompleteScene.ts`** — victory uses `mission_success.png`, defeat/abort uses `mission_failed.png` as full-screen background images with matching rounded-corner mask and brown border
+- **`PreLoaderScene.ts`** — dynamically loads all mission images (`mission_img_{id}`) from `imagePath` field; also loads `mission_success` and `mission_failed` textures; logo displayed fullscreen via `setDisplaySize(WIDTH, HEIGHT)`
+- **`src/scenes/ShopScene.ts`** — panel rows use 0px gap between them (`currentY += rowHeight` without extra spacing)
+- **Android deployment** — Capacitor configured (`capacitor.config.ts`; `assets/icon.png` + `assets/splash.png` for app icon/splash generation via `npx capacitor-assets generate`); starting gold set in `PlayerProfile.ts` (`gold: 500` in `defaultProfile()`)
+
 
 ---
 
@@ -267,6 +277,10 @@ When it's blue's turn:
 
 ---
 
+# Mission Data Fields
+
+Each mission definition now includes optional `story` (lore text displayed in the mission popup) and `imagePath` (filename in `/public/assets/`) for the popup background image.
+
 # Mission Unlock System
 
 ## Linear Chain
@@ -292,7 +306,7 @@ BootScene → PreLoaderScene (logo, progress bar, loading text) → WorldMapScen
 ```
 
 - `MenuScene` is registered but bypassed in the main flow; accessible via buttons.
-- `PreLoaderScene` layout: logo centered near top, progress bar below it, loading text near bottom.
+- `PreLoaderScene` layout: logo fills entire screen, progress bar near bottom, loading text below it.
 
 ---
 

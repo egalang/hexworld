@@ -17,24 +17,24 @@ export interface SkillDefinition {
 }
 
 export const SKILLS: SkillDefinition[] = [
-    {
-      id: 'skill_hex',
-      name: 'Hex',
-      description: 'Mark a vacant tile — only you can ever occupy it this battle.',
-      cost: 150,
-      requiredLevel: 1,
-      type: 'hex',
-      maxLevel: 3,
-      upgradeCost: 150,
-      upgradeLevelReq: 1,
-    },
   {
     id: 'skill_freeze',
     name: 'Freeze',
     description: 'Freeze opponent piece(s) so they cannot be moved while owned by opponent. Freeze ends if the piece is converted.',
     cost: 250,
-    requiredLevel: 2,
+    requiredLevel: 1,
     type: 'freeze',
+    maxLevel: 3,
+    upgradeCost: 150,
+    upgradeLevelReq: 1,
+  },
+  {
+    id: 'skill_hex',
+    name: 'Hex',
+    description: 'Mark a vacant tile — only you can ever occupy it this battle.',
+    cost: 150,
+    requiredLevel: 2,
+    type: 'hex',
     maxLevel: 3,
     upgradeCost: 150,
     upgradeLevelReq: 1,

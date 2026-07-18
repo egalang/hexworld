@@ -63,7 +63,7 @@ export class ShopScene extends Phaser.Scene {
       const row = this.createItemRow(item, currentY);
       scrollContent.add(row);
       const rowHeight = (row as any).height ?? 100;
-      currentY += rowHeight + 8;
+      currentY += rowHeight + 12;
     }
   }
 
@@ -230,7 +230,6 @@ export class ShopScene extends Phaser.Scene {
       if (w.imageUrl) {
         const infoBtn = this.makeButton(BTN_X, cursorY - 3, 'Info', () => this.showInfoPopup(w.imageUrl!));
         c.add(infoBtn);
-        cursorY += 28;
       }
     }
 

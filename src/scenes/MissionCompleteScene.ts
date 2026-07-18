@@ -43,7 +43,38 @@ export class MissionCompleteScene extends Phaser.Scene {
   }
 
   private createBackground() {
-    this.add.image(WIDTH / 2, HEIGHT / 2, 'arena_bg').setDisplaySize(WIDTH, HEIGHT);
+    const outcome = this.missionResult.outcome;
+    const key = outcome === 'victory' ? 'mission_success' : 'mission_failed';
+
+    const img = this.add.image(0, 0, key);
+    const maxW = WIDTH - 60;
+    const maxH = HEIGHT - 120;
+    const scale = Math.min(maxW / img.width, maxH / img.height, 1);
+    img.setScale(scale);
+    img.setPosition(WIDTH / 2, HEIGHT / 2);
+
+    const maskShape = this.add.graphics();
+    maskShape.fillStyle(0xffffff);
+    maskShape.fillRoundedRect(
+      WIDTH / 2 - img.displayWidth / 2,
+      HEIGHT / 2 - img.displayHeight / 2,
+      img.displayWidth,
+      img.displayHeight,
+      17,
+    );
+    const mask = maskShape.createGeometryMask();
+    img.setMask(mask);
+    maskShape.setAlpha(0);
+
+    const border = this.add.graphics();
+    border.lineStyle(12, 0x3B1F0B, 1);
+    border.strokeRoundedRect(
+      WIDTH / 2 - (img.displayWidth + 2) / 2,
+      HEIGHT / 2 - (img.displayHeight + 2) / 2,
+      img.displayWidth + 2,
+      img.displayHeight + 2,
+      17,
+    );
   }
 
   private createOutcomeHeader(outcome: string) {

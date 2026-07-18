@@ -25,7 +25,7 @@ function defaultProfile(): PlayerProfileData {
     name: 'Commander',
     level: 1,
     xp: 0,
-    gold: 500,
+    gold: 0,
     completedMissions: [],
     statistics: {
       missionsWon: 0,

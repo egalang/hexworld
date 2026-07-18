@@ -5,6 +5,7 @@ import { MusicManager } from './MusicManager';
 import { axialToPixel, computeMapBounds } from '../data/hexUtils';
 import { MissionManager } from '../managers/MissionManager';
 import { getCompletedMissionIds } from '../state/PlayerProfile';
+import { getMissionById, MissionDefinition } from '../data/missions';
 
 const HEX_SIZE = 35;
 
@@ -114,10 +115,118 @@ export class WorldMapScene extends Phaser.Scene {
         zone.on('pointerdown', () => {
           unlockAudio(this);
           playSound(this, SOUND_KEYS.confirm, 0.35);
+          if (tile.missionId) {
+            const mission = getMissionById(tile.missionId);
+            if (mission) {
+              this.showMissionPopup(mission);
+              return;
+            }
+          }
           this.dispatchTileAction(tile);
         });
       }
     }
+  }
+
+  private showMissionPopup(mission: MissionDefinition) {
+    const imgKey = `mission_img_${mission.id}`;
+    if (!this.textures.exists(imgKey)) {
+      return;
+    }
+
+    const popup = this.add.container(0, 0).setDepth(200);
+
+    const overlay = this.add.graphics();
+    overlay.fillStyle(0x000000, 0.7);
+    overlay.fillRect(0, 0, WIDTH, HEIGHT);
+    overlay.setInteractive(new Phaser.Geom.Rectangle(0, 0, WIDTH, HEIGHT), Phaser.Geom.Rectangle.Contains);
+    popup.add(overlay);
+
+    const img = this.add.image(0, 0, imgKey);
+    const maxW = WIDTH - 60;
+    const maxH = HEIGHT - 120;
+    const scale = Math.min(maxW / img.width, maxH / img.height, 1);
+    img.setScale(scale);
+    img.setPosition(WIDTH / 2, HEIGHT / 2);
+    popup.add(img);
+
+    const maskShape = this.add.graphics();
+    maskShape.fillStyle(0xffffff);
+    maskShape.fillRoundedRect(
+      WIDTH / 2 - img.displayWidth / 2,
+      HEIGHT / 2 - img.displayHeight / 2,
+      img.displayWidth,
+      img.displayHeight,
+      17,
+    );
+    const mask = maskShape.createGeometryMask();
+    img.setMask(mask);
+    maskShape.setAlpha(0);
+    popup.add(maskShape);
+
+    const border = this.add.graphics();
+    border.lineStyle(12, 0x3B1F0B, 1);
+    border.strokeRoundedRect(
+      WIDTH / 2 - (img.displayWidth + 2) / 2,
+      HEIGHT / 2 - (img.displayHeight + 2) / 2,
+      img.displayWidth + 2,
+      img.displayHeight + 2,
+      17,
+    );
+    popup.add(border);
+
+    const closeBtn = this.add.text(WIDTH / 2 + img.displayWidth / 2 + 8, HEIGHT / 2 - img.displayHeight / 2 - 8, '✕', {
+      fontSize: '24px', fontStyle: 'bold', color: '#ffffff',
+      stroke: '#000000', strokeThickness: 4,
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    popup.add(closeBtn);
+
+    const txtColor = '#ffffff';
+    const txtStroke = '#000000';
+
+    const titleText = this.add.text(WIDTH / 2, HEIGHT / 2 - img.displayHeight / 2 + 30, mission.title, {
+      fontSize: '26px', fontStyle: 'bold', color: txtColor,
+      stroke: txtStroke, strokeThickness: 5,
+    }).setOrigin(0.5);
+    popup.add(titleText);
+
+    const descText = this.add.text(WIDTH / 2, HEIGHT / 2 - img.displayHeight / 2 + 60, mission.description, {
+      fontSize: '14px', color: txtColor,
+      stroke: txtStroke, strokeThickness: 3,
+    }).setOrigin(0.5);
+    popup.add(descText);
+
+    const storyText = this.add.text(WIDTH / 2, HEIGHT / 2 + img.displayHeight / 2 - 120, mission.story || '', {
+      fontSize: '13px', color: txtColor,
+      stroke: txtStroke, strokeThickness: 3,
+      wordWrap: { width: maxW - 20 }, align: 'center', lineSpacing: 4,
+    }).setOrigin(0.5, 1);
+    popup.add(storyText);
+
+    const btnC = this.add.container(WIDTH / 2, HEIGHT / 2 + img.displayHeight / 2 - 50);
+    const btnBg = this.add.graphics();
+    const btnW = 200;
+    const btnH = 48;
+    btnBg.fillStyle(0x3B1F0B, 1);
+    btnBg.fillRoundedRect(-btnW / 2, -btnH / 2, btnW, btnH, 10);
+    btnBg.lineStyle(2, 0xc5a55a, 1);
+    btnBg.strokeRoundedRect(-btnW / 2, -btnH / 2, btnW, btnH, 10);
+    const btnText = this.add.text(0, 0, 'START MISSION', {
+      fontSize: '17px', fontStyle: 'bold', color: '#c5a55a',
+    }).setOrigin(0.5);
+    btnC.add([btnBg, btnText]);
+    btnC.setSize(btnW, btnH);
+    btnC.setInteractive({ useHandCursor: true });
+    btnC.on('pointerdown', () => {
+      popup.destroy();
+      const config = this.missionManager.getBattleConfig(mission.id);
+      this.scene.start('HexConquestScene', { battleConfig: config, returnScene: 'WorldMapScene' });
+    });
+    popup.add(btnC);
+
+    const destroyPopup = () => popup.destroy();
+    closeBtn.on('pointerdown', destroyPopup);
+    overlay.on('pointerdown', destroyPopup);
   }
 
   private dispatchTileAction(tile: WorldTile) {

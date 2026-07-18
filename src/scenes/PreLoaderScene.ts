@@ -3,7 +3,10 @@ import {
     preloadSoundEffects, 
     BLUE_SOLDIER_KEY,
     RED_SOLDIER_KEY,
+    WIDTH,
+    HEIGHT,
 } from '../shared';
+import { MISSIONS } from '../data/missions';
 import blueSoldierUrl from '/assets/blue_01.png';
 import redSoldierUrl from '/assets/red_01.png';
 import worldmapBgUrl from '/assets/worldmap_bg.png';
@@ -18,6 +21,8 @@ import arenaUrl from '/assets/arena.png';
 import skillShopUrl from '/assets/skill_shop.png';
 import arenaBgUrl from '/assets/arena_bg.png';
 import battleBgUrl from '/assets/battle_bg.png';
+import missionFailedUrl from '/assets/mission_failed.png';
+import missionSuccessUrl from '/assets/mission_success.png';
 
 export class PreloaderScene extends Phaser.Scene {
   private progressBar!: Phaser.GameObjects.Graphics;
@@ -40,9 +45,9 @@ export class PreloaderScene extends Phaser.Scene {
     //
     // Logo
     //
-    const logo = this.add.image(0, -40, "game-logo")
+    const logo = this.add.image(0, 0, "game-logo")
       .setOrigin(0.5)
-      .setScale(0.35);
+      .setDisplaySize(WIDTH, HEIGHT);
 
     //
     // Progress box
@@ -170,6 +175,23 @@ export class PreloaderScene extends Phaser.Scene {
 
     if (!this.textures.exists('battle_bg')) {
       this.load.image('battle_bg', battleBgUrl);
+    }
+
+    if (!this.textures.exists('mission_failed')) {
+      this.load.image('mission_failed', missionFailedUrl);
+    }
+
+    if (!this.textures.exists('mission_success')) {
+      this.load.image('mission_success', missionSuccessUrl);
+    }
+
+    for (const mission of MISSIONS) {
+      if (mission.imagePath) {
+        const key = `mission_img_${mission.id}`;
+        if (!this.textures.exists(key)) {
+          this.load.image(key, `/assets/${mission.imagePath}`);
+        }
+      }
     }
   }
 
